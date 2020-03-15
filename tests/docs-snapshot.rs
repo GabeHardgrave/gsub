@@ -17,7 +17,7 @@ FLAGS:
 ARGS:
     <pattern>        The pattern you want to replace
     <replacement>    String for replacement
-    <file>           The file you want to make substitions on
+    <file>           The file you want to make substitutions on
 "
         .to_string();
 

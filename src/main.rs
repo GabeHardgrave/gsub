@@ -16,7 +16,7 @@ struct Config {
     /// String for replacement
     replacement: String,
 
-    /// The file you want to make substitions on
+    /// The file you want to make substitutions on
     #[structopt(parse(from_os_str))]
     file: PathBuf,
 }
