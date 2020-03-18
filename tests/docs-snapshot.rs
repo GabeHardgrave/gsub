@@ -7,12 +7,15 @@ gsub 0.1.0
 Bulk substitutions on a given file
 
 USAGE:
-    gsub [FLAGS] <pattern> <replacement> <file>
+    gsub [FLAGS] [OPTIONS] <pattern> <replacement> <file>
 
 FLAGS:
     -d, --dry-run    
     -h, --help       Prints help information
     -V, --version    Prints version information
+
+OPTIONS:
+    -m, --skip-files-larger-than <max-file-size>    Skip files larger than the given number of bytes [default: 4194304]
 
 ARGS:
     <pattern>        The pattern you want to replace

@@ -6,8 +6,13 @@ use gsub::opts::Opts;
 fn main() -> std::io::Result<()> {
     let options = Opts::from_args();
     let re = options.parse_regex_from_pattern()?;
-    for mut file in options.file_iter().each_file() {
-        let mut contents = String::new();
+    let files_and_sizes = options
+        .file_iter()
+        .each_file_with_size()
+        .filter(|(_file, size)| *size <= options.max_file_size);
+
+    for (mut file, size) in files_and_sizes {
+        let mut contents = String::with_capacity(size);
         file.read_to_string(&mut contents)?;
 
         let new_contents = re.replace_all(&contents, options.replacement.as_str());

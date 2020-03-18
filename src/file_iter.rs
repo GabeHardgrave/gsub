@@ -31,12 +31,14 @@ fn open_file(dir_entry: DirEntry) -> io::Result<File> {
 }
 
 impl FileIter {
-    pub fn each_file(self) -> impl Iterator<Item = File> {
+    pub fn each_file_with_size(self) -> impl Iterator<Item = (File, usize)> {
         self.files
             .into_iter()
             .filter_map(pluck_dir_entry_and_metadata)
             .filter(|(_entry, meta_data)| meta_data.is_file())
-            .filter_map(|(entry, _metadata)| open_file(entry).ok())
+            .filter_map(|(entry, meta_data)| {
+                open_file(entry).map(|f| (f, meta_data.len() as usize)).ok()
+            })
     }
 }
 
@@ -59,7 +61,7 @@ mod tests {
         fs::File::create("test-files/file_iter_tests/two").expect("unable to create file");
 
         let file_iter = FileIter { files: WalkDir::new("test-files/file_iter_tests") };
-        for file in file_iter.each_file() {
+        for (file, _size) in file_iter.each_file_with_size() {
             let md = file.metadata().unwrap();
             assert!(md.is_file(), "{:?} was not a file", md)
         }
