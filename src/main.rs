@@ -6,8 +6,7 @@ use gsub::opts::Opts;
 fn main() -> std::io::Result<()> {
     let options = Opts::from_args();
     let re = options.parse_regex_from_pattern()?;
-    for file_result in options.file_iter().each_file() {
-        let mut file = file_result?;
+    for mut file in options.file_iter().each_file() {
         let mut contents = String::new();
         file.read_to_string(&mut contents)?;
 
