@@ -1,7 +1,7 @@
-use std::fs::File;
-use std::fs::OpenOptions;
+use std::io;
+use std::fs::{File, OpenOptions, Metadata};
+use walkdir::{self, WalkDir, DirEntry};
 use crate::opts::Opts;
-use walkdir::{WalkDir, DirEntry};
 
 pub struct FileIter {
     files: WalkDir,
@@ -13,14 +13,15 @@ impl Opts {
     }
 }
 
-fn is_file(dir_entry: &DirEntry) -> bool {
-    match dir_entry.metadata() {
-        Ok(meta_data) => meta_data.is_file(),
-        _ => false,
-    }
+fn pluck_dir_entry_and_metadata(
+    dir_entry: walkdir::Result<DirEntry>,
+) -> Option<(DirEntry, Metadata)> {
+    let entry = dir_entry.ok()?;
+    let meta_data = entry.metadata().ok()?;
+    Some((entry, meta_data))
 }
 
-fn open_file(dir_entry: DirEntry) -> std::io::Result<File> {
+fn open_file(dir_entry: DirEntry) -> io::Result<File> {
     OpenOptions::new()
         .read(true)
         .write(true)
@@ -30,13 +31,12 @@ fn open_file(dir_entry: DirEntry) -> std::io::Result<File> {
 }
 
 impl FileIter {
-    pub fn each_file(self) -> impl Iterator<Item = std::io::Result<File>> {
+    pub fn each_file(self) -> impl Iterator<Item = io::Result<File>> {
         self.files
             .into_iter()
-            .filter(Result::is_ok)
-            .map(Result::unwrap)
-            .filter(is_file)
-            .map(open_file)
+            .filter_map(pluck_dir_entry_and_metadata)
+            .filter(|(_entry, meta_data)| meta_data.is_file())
+            .map(|(entry, _metadata)| open_file(entry))
     }
 }
 
