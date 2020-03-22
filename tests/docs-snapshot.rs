@@ -7,7 +7,7 @@ gsub 0.1.0
 Bulk substitutions on a given file
 
 USAGE:
-    gsub [FLAGS] [OPTIONS] <pattern> <replacement> <file>
+    gsub [FLAGS] [OPTIONS] <pattern> <replacement> [files]...
 
 FLAGS:
     -d, --dry-run    
@@ -20,7 +20,7 @@ OPTIONS:
 ARGS:
     <pattern>        The pattern you want to replace
     <replacement>    String for replacement
-    <file>           The file you want to make substitutions on
+    <files>...       List of files/directories you want to gsub on
 "
         .to_string();
 
