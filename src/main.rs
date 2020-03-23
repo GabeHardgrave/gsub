@@ -6,12 +6,12 @@ fn main() -> std::io::Result<()> {
     let options = Opts::from_args();
 
     let re = options.parse_regex_from_pattern()?;
-    let files_and_sizes = options
+    let files_and_metadata = options
         .file_iter()
         .each_file_with_size()
         .filter(|(_file, metadata)| metadata.len() as usize <= options.max_file_size);
 
-    for (mut file, metadata) in files_and_sizes {
+    for (mut file, metadata) in files_and_metadata {
         let mut contents = String::with_capacity(metadata.len() as usize);
         if let Err(_e) = file.read_to_string(&mut contents) {
             continue;
