@@ -38,7 +38,7 @@ fn open_file(dir_entry: DirEntry) -> io::Result<File> {
 }
 
 impl FileIter {
-    pub fn each_file_with_size(self) -> impl Iterator<Item = (File, Metadata)> {
+    pub fn each_file_with_metadata(self) -> impl Iterator<Item = (File, Metadata)> {
         self.files
             .into_iter()
             .flatten()
@@ -71,8 +71,7 @@ mod tests {
         fs::File::create("test-files/file_iter_tests/two").expect("unable to create file");
 
         let file_iter = FileIter { files: vec![WalkDir::new("test-files/file_iter_tests")] };
-        for (file, _size) in file_iter.each_file_with_size() {
-            let md = file.metadata().unwrap();
+        for (_file, md) in file_iter.each_file_with_metadata() {
             assert!(md.is_file(), "{:?} was not a file", md)
         }
 
