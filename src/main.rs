@@ -5,7 +5,7 @@ use gsub::opts::Opts;
 fn main() -> std::io::Result<()> {
     let options = Opts::from_args();
 
-    let re = options.parse_regex_from_pattern()?;
+    let replacer = options.get_replacer()?;
     let files_and_metadata = options
         .file_iter()
         .each_file_with_metadata()
@@ -17,7 +17,10 @@ fn main() -> std::io::Result<()> {
             continue;
         }
 
-        let new_contents = re.replace_all(&contents, options.replacement.as_str());
+        let new_contents = match replacer.replace(&contents) {
+            Some(s) => s,
+            None => continue,
+        };
         if options.dry_run {
             println!("Would have replaced `{}` with `{}`", contents, new_contents);
         } else {
