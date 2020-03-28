@@ -6,18 +6,23 @@ fn main() -> std::io::Result<()> {
     let options = Opts::from_args();
     let replacer = options.get_replacer()?;
 
+    let mut buffer = String::new();
     for mut fd in options.files() {
-        let mut contents = String::with_capacity(fd.meta_data.len() as usize);
-        if let Err(_e) = fd.file.read_to_string(&mut contents) {
+        buffer.clear();
+        if fd.meta_data.len() as usize > buffer.capacity() {
+            buffer.reserve(fd.meta_data.len() as usize - buffer.capacity());
+        }
+
+        if let Err(_e) = fd.file.read_to_string(&mut buffer) {
             continue;
         }
 
-        let new_contents = match replacer.replace(&contents) {
+        let new_contents = match replacer.replace(&buffer) {
             Some(s) => s,
             None => continue,
         };
         if options.dry_run {
-            println!("Would have replaced `{}` with `{}`", contents, new_contents);
+            println!("Would have replaced `{}` with `{}`", buffer, new_contents);
         } else {
             fd.file.seek(SeekFrom::Start(0))?;
             fd.file.write_all(&new_contents.as_bytes())?;
