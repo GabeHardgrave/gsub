@@ -1,5 +1,5 @@
 use std::io;
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 use std::fs::{File, OpenOptions, Metadata};
 use walkdir::{self, WalkDir, DirEntry};
 use crate::opts::Opts;
@@ -7,6 +7,13 @@ use crate::opts::Opts;
 pub struct FileData {
     pub file: File,
     pub meta_data: Metadata,
+    dir_entry: DirEntry,
+}
+
+impl FileData {
+    pub fn path(&self) -> &Path {
+        self.dir_entry.path()
+    }
 }
 
 struct FileIterConfig {
@@ -38,13 +45,14 @@ impl FileIterConfig {
             .filter(move |(_entry, meta_data)| meta_data.len() <= max_file_size)
             .filter(|(_entry, meta_data)| meta_data.is_file())
             .filter_map(move |(entry, meta_data)| {
-                open_file(entry, read_only)
-                    .map(|f| (f, meta_data))
+                open_file(&entry, read_only)
+                    .map(|f| (entry, meta_data, f))
                     .ok()
             })
-            .map(|(file, meta_data)| FileData {
+            .map(|(entry, meta_data, file)| FileData {
                 file: file,
                 meta_data: meta_data,
+                dir_entry: entry,
             })
     }
 }
@@ -72,7 +80,7 @@ fn pluck_dir_entry_and_metadata(
     Some((entry, meta_data))
 }
 
-fn open_file(dir_entry: DirEntry, read_only: bool) -> io::Result<File> {
+fn open_file(dir_entry: &DirEntry, read_only: bool) -> io::Result<File> {
     OpenOptions::new()
         .read(true)
         .write(!read_only)

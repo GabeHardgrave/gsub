@@ -13,7 +13,14 @@ fn main() -> std::io::Result<()> {
             buffer.reserve(fd.meta_data.len() as usize - buffer.capacity());
         }
 
-        if let Err(_e) = fd.file.read_to_string(&mut buffer) {
+        if let Err(e) = fd.file.read_to_string(&mut buffer) {
+            if options.verbose {
+                println!(
+                    "Skipping {} because {}",
+                    fd.path().to_string_lossy(),
+                    e,
+                );
+            }
             continue;
         }
 

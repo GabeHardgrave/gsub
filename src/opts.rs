@@ -9,6 +9,9 @@ pub struct Opts {
     #[structopt(short, long)]
     pub dry_run: bool,
 
+    #[structopt(short, long)]
+    pub verbose: bool,
+
     /// The pattern you want to replace
     pub pattern: String,
 

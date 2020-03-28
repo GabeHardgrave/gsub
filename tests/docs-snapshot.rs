@@ -13,6 +13,7 @@ FLAGS:
     -d, --dry-run    
     -h, --help       Prints help information
     -V, --version    Prints version information
+    -v, --verbose    
 
 OPTIONS:
     -m, --skip-files-larger-than <max-file-size>    Skip files larger than the given number of bytes [default: 4194304]
