@@ -16,31 +16,34 @@ impl FileData {
     }
 }
 
+type DynFileIter = Box<dyn Iterator<Item=walkdir::Result<DirEntry>>>;
+
 struct FileIterConfig {
     max_file_size: u64,
-    files_to_search: Vec<WalkDir>,
+    dir_entries: DynFileIter,
     read_only: bool,
 }
 
 impl FileIterConfig {
-    fn new(max_file_size: usize, files_to_search: &[PathBuf], read_only: bool) -> FileIterConfig {
-        let mut files: Vec<WalkDir> = files_to_search.iter().map(WalkDir::new).collect();
-        if files.is_empty() {
-            files.push(WalkDir::new("."))
-        }
+    fn new(max_file_size: usize, paths: Vec<PathBuf>, read_only: bool) -> FileIterConfig {
+        let dir_entries: DynFileIter = if paths.is_empty() {
+            Box::new(WalkDir::new(".").into_iter())
+        } else {
+            Box::new(paths.into_iter().map(WalkDir::new).flat_map(WalkDir::into_iter))
+        };
+
         FileIterConfig {
             max_file_size: max_file_size as u64,
-            files_to_search: files,
-            read_only: read_only,
+            dir_entries: dir_entries,
+            read_only: read_only
         }
     }
 
     fn files(self) -> impl Iterator<Item=FileData> {
         let max_file_size = self.max_file_size;
         let read_only = self.read_only;
-        self.files_to_search
-            .into_iter()
-            .flatten()
+
+        self.dir_entries
             .filter_map(pluck_dir_entry_and_metadata)
             .filter(move |(_entry, meta_data)| meta_data.len() <= max_file_size)
             .filter(|(_entry, meta_data)| meta_data.is_file())
@@ -63,11 +66,11 @@ impl Opts {
     }
 
     fn file_iter_config(&self) -> FileIterConfig {
-        FileIterConfig::new(
-            self.max_file_size,
-            &self.files,
-            self.dry_run,
-        )
+        // Getting `FileIterConfig::new` to accept a reference proved fairly challenging.
+        // Since only one `Opts` struct will exist, and since `.files` is a user defined list,
+        // I'm really not worried about the runtime penalty of cloning
+        let paths = self.files.clone();
+        FileIterConfig::new(self.max_file_size, paths, self.dry_run)
     }
 }
 
@@ -119,7 +122,7 @@ mod tests {
 
         let fi = FileIterConfig::new(
             100,
-            &["test-files/file_iterator_tests".into()],
+            vec!["test-files/file_iterator_tests".into()],
             true,
         );
         let files_searched = fi.files().map(|f| {
@@ -141,7 +144,7 @@ mod tests {
 
         let mut files: Vec<File> = FileIterConfig::new(
             10,
-            &[
+            vec![
                 "test-files/big_enough.txt".into(),
                 "test-files/too_big.txt".into(),
             ],
@@ -166,7 +169,7 @@ mod tests {
         fs::File::create("test-files/no-touching").expect("unable to create file");
         let mut f = FileIterConfig::new(
             100,
-            &["test-files/no-touching".into()],
+            vec!["test-files/no-touching".into()],
             true,
         ).files().map(|fd| fd.file).next().expect("didn't find the expected file");
         let attempt = f.write_all(b"I'm touching");
@@ -176,7 +179,7 @@ mod tests {
         fs::File::create("test-files/ok-touching").expect("unable to create file");
         let mut f = FileIterConfig::new(
             100,
-            &["test-files/ok-touching".into()],
+            vec!["test-files/ok-touching".into()],
             false,
         ).files().map(|fd| fd.file).next().expect("didn't find the expected file");
         let attempt = f.write_all(b"I'm touching");
