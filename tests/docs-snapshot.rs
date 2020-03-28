@@ -1,10 +1,10 @@
 use std::process::Command;
 
 #[test]
-fn test_docs_match_expected_snapshot() {
+fn help_docs_match_expected_snapshot() {
     let expected_docs = "\
 gsub 0.1.0
-Bulk substitutions on a given file
+Regex substitution for files and directories
 
 USAGE:
     gsub [FLAGS] [OPTIONS] <pattern> <replacement> [files]...
@@ -29,6 +29,7 @@ ARGS:
         .output()
         .expect("can't execute `gsub --help`")
         .stdout;
-    let help_docs = String::from_utf8(help_docs_raw).expect("Help docs aren't valid UTF8");
+    let help_docs = String::from_utf8(help_docs_raw)
+        .expect("Help docs aren't valid UTF8");
     assert_eq!(expected_docs, help_docs)
 }

@@ -4,7 +4,7 @@ use std::path::PathBuf;
 static DEFAULT_FILE_SIZE: &str = "4194304";
 
 #[derive(Debug, StructOpt)]
-#[structopt(name = "gsub", about = "Bulk substitutions on a given file")]
+#[structopt(name = "gsub", about = "Regex substitution for files and directories")]
 pub struct Opts {
     #[structopt(short, long)]
     pub dry_run: bool,
