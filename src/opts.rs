@@ -19,7 +19,7 @@ pub struct Opts {
     #[structopt(short = "m", long = "skip-files-larger-than", default_value = DEFAULT_FILE_SIZE)]
     pub max_file_size: usize,
 
-    /// List of files/directories you want to gsub on
+    /// List of files/directories you want to gsub on. If unspecified, uses the current directory.
     #[structopt(parse(from_os_str))]
     pub files: Vec<PathBuf>
 }

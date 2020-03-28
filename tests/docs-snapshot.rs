@@ -20,7 +20,7 @@ OPTIONS:
 ARGS:
     <pattern>        The pattern you want to replace
     <replacement>    String for replacement
-    <files>...       List of files/directories you want to gsub on
+    <files>...       List of files/directories you want to gsub on. If unspecified, uses the current directory
 "
         .to_string();
 
