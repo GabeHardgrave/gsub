@@ -12,10 +12,11 @@ pub struct FileData {
 struct FileIterConfig {
     max_file_size: u64,
     files_to_search: Vec<WalkDir>,
+    read_only: bool,
 }
 
 impl FileIterConfig {
-    fn new(max_file_size: usize, files_to_search: &[PathBuf]) -> FileIterConfig {
+    fn new(max_file_size: usize, files_to_search: &[PathBuf], read_only: bool) -> FileIterConfig {
         let mut files: Vec<WalkDir> = files_to_search.iter().map(WalkDir::new).collect();
         if files.is_empty() {
             files.push(WalkDir::new("."))
@@ -23,19 +24,21 @@ impl FileIterConfig {
         FileIterConfig {
             max_file_size: max_file_size as u64,
             files_to_search: files,
+            read_only: read_only,
         }
     }
 
     fn files(self) -> impl Iterator<Item=FileData> {
         let max_file_size = self.max_file_size;
+        let read_only = self.read_only;
         self.files_to_search
             .into_iter()
             .flatten()
             .filter_map(pluck_dir_entry_and_metadata)
             .filter(move |(_entry, meta_data)| meta_data.len() <= max_file_size)
             .filter(|(_entry, meta_data)| meta_data.is_file())
-            .filter_map(|(entry, meta_data)| {
-                open_file(entry)
+            .filter_map(move |(entry, meta_data)| {
+                open_file(entry, read_only)
                     .map(|f| (f, meta_data))
                     .ok()
             })
@@ -52,7 +55,11 @@ impl Opts {
     }
 
     fn file_iter_config(&self) -> FileIterConfig {
-        FileIterConfig::new(self.max_file_size, &self.files)
+        FileIterConfig::new(
+            self.max_file_size,
+            &self.files,
+            self.dry_run,
+        )
     }
 }
 
@@ -65,10 +72,10 @@ fn pluck_dir_entry_and_metadata(
     Some((entry, meta_data))
 }
 
-fn open_file(dir_entry: DirEntry) -> io::Result<File> {
+fn open_file(dir_entry: DirEntry, read_only: bool) -> io::Result<File> {
     OpenOptions::new()
         .read(true)
-        .write(true)
+        .write(!read_only)
         .append(false)
         .create(false)
         .open(dir_entry.path())
@@ -78,7 +85,7 @@ fn open_file(dir_entry: DirEntry) -> io::Result<File> {
 mod tests {
     use super::*;
     use std::fs;
-    use std::io::Read;
+    use std::io::{Read, Write};
 
     #[test]
     fn skips_directories() {
@@ -104,7 +111,8 @@ mod tests {
 
         let fi = FileIterConfig::new(
             100,
-            &["test-files/file_iterator_tests".into()]
+            &["test-files/file_iterator_tests".into()],
+            true,
         );
         let files_searched = fi.files().map(|f| {
             assert!(f.meta_data.is_file());
@@ -128,7 +136,8 @@ mod tests {
             &[
                 "test-files/big_enough.txt".into(),
                 "test-files/too_big.txt".into(),
-            ]
+            ],
+            true,
         ).files().map(|fd| fd.file).collect();
         assert_eq!(files.len(), 1);
 
@@ -142,5 +151,28 @@ mod tests {
             .expect("unable to clean up test");
         fs::remove_file("test-files/too_big.txt")
             .expect("unable to clean up test");
+    }
+
+    #[test]
+    fn only_opens_files_with_correct_permissions() {
+        fs::File::create("test-files/no-touching").expect("unable to create file");
+        let mut f = FileIterConfig::new(
+            100,
+            &["test-files/no-touching".into()],
+            true,
+        ).files().map(|fd| fd.file).next().expect("didn't find the expected file");
+        let attempt = f.write_all(b"I'm touching");
+        assert!(attempt.is_err(), "{:?}", attempt);
+        fs::remove_file("test-files/no-touching").expect("unable to clean up test");
+
+        fs::File::create("test-files/ok-touching").expect("unable to create file");
+        let mut f = FileIterConfig::new(
+            100,
+            &["test-files/ok-touching".into()],
+            false,
+        ).files().map(|fd| fd.file).next().expect("didn't find the expected file");
+        let attempt = f.write_all(b"I'm touching");
+        assert!(attempt.is_ok(), "{:?}", attempt);
+        fs::remove_file("test-files/ok-touching").expect("unable to clean up test");
     }
 }
