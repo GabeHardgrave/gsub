@@ -4,16 +4,11 @@ use gsub::opts::Opts;
 
 fn main() -> std::io::Result<()> {
     let options = Opts::from_args();
-
     let replacer = options.get_replacer()?;
-    let files_and_metadata = options
-        .file_iter()
-        .each_file_with_metadata()
-        .filter(|(_file, metadata)| metadata.len() as usize <= options.max_file_size);
 
-    for (mut file, metadata) in files_and_metadata {
-        let mut contents = String::with_capacity(metadata.len() as usize);
-        if let Err(_e) = file.read_to_string(&mut contents) {
+    for mut fd in options.files() {
+        let mut contents = String::with_capacity(fd.meta_data.len() as usize);
+        if let Err(_e) = fd.file.read_to_string(&mut contents) {
             continue;
         }
 
@@ -24,8 +19,8 @@ fn main() -> std::io::Result<()> {
         if options.dry_run {
             println!("Would have replaced `{}` with `{}`", contents, new_contents);
         } else {
-            file.seek(SeekFrom::Start(0))?;
-            file.write_all(&new_contents.as_bytes())?;
+            fd.file.seek(SeekFrom::Start(0))?;
+            fd.file.write_all(&new_contents.as_bytes())?;
         }
     }
     Ok(())

@@ -2,6 +2,7 @@ use std::borrow::Cow::{Borrowed, Owned};
 use std::io::{self, Error, ErrorKind};
 use regex::Regex;
 use crate::opts::Opts;
+
 #[derive(Debug)]
 pub struct Replacer<'a> {
     pattern: Regex,
