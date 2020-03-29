@@ -19,7 +19,13 @@ impl FileData {
             .write(!read_only)
             .append(false)
             .create(false)
-            .open(dir_entry.path())?;
+            .open(dir_entry.path())
+            .map_err(|io_error| {
+                io::Error::new(
+                    io::ErrorKind::Other,
+                    format!("Failed to open {}: {}", dir_entry.path().to_string_lossy(), io_error)
+                )
+            })?;
 
         Ok(Self {
             file: file,
@@ -70,7 +76,7 @@ impl FileIterConfig {
 }
 
 impl IntoIterator for FileIterConfig {
-    type Item = FileData;
+    type Item = io::Result<FileData>;
     type IntoIter = Box<dyn Iterator<Item = Self::Item>>;
 
     fn into_iter(self) -> Self::IntoIter {
@@ -95,8 +101,8 @@ impl IntoIterator for FileIterConfig {
             .filter_map(pluck_meta_data)
             .filter(move |(_entry, meta_data)| meta_data.len() <= max_file_size)
             .filter(|(_entry, meta_data)| meta_data.is_file())
-            .filter_map(move |(entry, meta_data)|
-                FileData::open(entry, meta_data, read_only).ok()
+            .map(move |(entry, meta_data)|
+                FileData::open(entry, meta_data, read_only)
             )
         )
     }
@@ -127,6 +133,7 @@ mod tests {
 
         let files_searched: Vec<String> = fi
             .into_iter()
+            .map(Result::unwrap)
             .map(|fd| fd.path().to_string_lossy().to_string())
             .collect();
         assert_eq!(files_searched.len(), 1);
@@ -159,7 +166,7 @@ mod tests {
         });
 
         let fi = FileIterConfig::new(&["test-files/file_iterator_tests"]);
-        let files_searched = fi.into_iter().map(|f| {
+        let files_searched = fi.into_iter().map(Result::unwrap).map(|f| {
             assert!(f.meta_data.is_file());
             f
         }).count();
@@ -181,7 +188,7 @@ mod tests {
             "test-files/too_big.txt",
         ]).skip_files_larger_than(10);
 
-        let mut files: Vec<FileData> = fi.into_iter().collect();
+        let mut files: Vec<FileData> = fi.into_iter().map(Result::unwrap).collect();
         assert_eq!(files.len(), 1);
         assert_eq!(files.pop().unwrap().path().to_string_lossy(), "test-files/big_enough.txt");
 
@@ -198,7 +205,7 @@ mod tests {
         let fi = FileIterConfig::new(&["test-files/no-touching"])
             .read_only(true);
         let mut f = fi.into_iter()
-            .map(|fd| fd.file).next().expect("didn't find the expected file");
+            .map(|fd| fd.unwrap().file).next().expect("didn't find the expected file");
         let attempt = f.write_all(b"I'm touching");
         assert!(attempt.is_err(), "{:?}", attempt);
 
@@ -211,7 +218,7 @@ mod tests {
 
         let fi = FileIterConfig::new(&["test-files/ok-touching"])
             .read_only(false);
-        let mut f = fi.into_iter().map(|fd| fd.file).next().expect("didn't find the expected file");
+        let mut f = fi.into_iter().map(|fd| fd.unwrap().file).next().expect("didn't find the expected file");
         let attempt = f.write_all(b"I'm touching");
         assert!(attempt.is_ok(), "{:?}", attempt);
 

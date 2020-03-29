@@ -8,7 +8,17 @@ fn main() -> std::io::Result<()> {
     let replacer = options.get_replacer()?;
 
     let mut buffer = String::new();
-    for mut fd in file_iter {
+    for fd_result in file_iter {
+        let mut fd = match fd_result {
+            Ok(fd) => fd,
+            Err(e) => {
+                if options.verbose {
+                    println!("{}", e);
+                }
+                continue;
+            },
+        };
+
         buffer.clear();
         if fd.meta_data.len() as usize > buffer.capacity() {
             buffer.reserve(fd.meta_data.len() as usize - buffer.capacity());
