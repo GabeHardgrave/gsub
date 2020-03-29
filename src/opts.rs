@@ -48,7 +48,7 @@ impl Opts {
     }
 
     pub fn file_iter_config(&self) -> io::Result<FileIterConfig> {
-        FileIterConfig::new(self.files.clone())
+        FileIterConfig::new(&self.files)
             .read_only(self.dry_run)
             .skip_files_larger_than(self.max_file_size)
             .skip_files_that_match(&self.files_to_skip)
