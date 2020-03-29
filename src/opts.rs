@@ -35,14 +35,19 @@ pub struct Opts {
 }
 
 impl Opts {
+    pub fn parse() -> Self {
+        let mut opts = Self::from_args();
+        if opts.files.is_empty() {
+            opts.files.push(".".into()) // current directory
+        }
+        opts
+    }
+
     pub fn get_replacer(&self) -> io::Result<Replacer> {
         Replacer::new(&self.pattern, &self.replacement)
     }
 
-    pub fn file_iter_config(&mut self) -> io::Result<FileIterConfig> {
-        if self.files.is_empty() {
-            self.files.push(".".into()) // current directory
-        }
+    pub fn file_iter_config(&self) -> io::Result<FileIterConfig> {
         FileIterConfig::new(self.files.clone())
             .read_only(self.dry_run)
             .skip_files_larger_than(self.max_file_size)

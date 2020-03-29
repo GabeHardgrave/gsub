@@ -1,9 +1,8 @@
 use std::io::{Read, Write, Seek, SeekFrom};
-use structopt::StructOpt;
 use gsub::opts::Opts;
 
 fn main() -> std::io::Result<()> {
-    let mut options = Opts::from_args();
+    let options = Opts::parse();
     let file_iter = options.file_iter_config()?;
     let replacer = options.get_replacer()?;
 
