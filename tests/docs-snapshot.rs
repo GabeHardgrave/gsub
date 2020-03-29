@@ -11,7 +11,8 @@ USAGE:
 
 FLAGS:
     -d, --dry-run    
-    -h, --help       Prints help information
+        --help       Prints help information
+    -h, --hidden     Do not skip hidden files and directories
     -V, --version    Prints version information
     -v, --verbose    
 

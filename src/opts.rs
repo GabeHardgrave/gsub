@@ -29,6 +29,10 @@ pub struct Opts {
     #[structopt(short = "e", long = "except")]
     pub files_to_skip: Vec<String>,
 
+    /// Do not skip hidden files and directories
+    #[structopt(short = "h", long = "hidden")]
+    pub show_hidden_files: bool,
+
     /// List of files/directories you want to gsub on. If unspecified, uses the current directory.
     #[structopt(parse(from_os_str))]
     pub files: Vec<PathBuf>,
@@ -51,6 +55,7 @@ impl Opts {
         FileIterConfig::new(&self.files)
             .read_only(self.dry_run)
             .skip_files_larger_than(self.max_file_size)
+            .skip_hidden_files(!self.show_hidden_files)
             .skip_files_that_match(&self.files_to_skip)
             .map_err(|regex_err| {
                 io::Error::new(io::ErrorKind::Other, regex_err.to_string())

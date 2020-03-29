@@ -3,7 +3,7 @@ use std::path::{Path};
 use std::fs::{File, OpenOptions, Metadata};
 use regex::{self, RegexSet};
 use walkdir::{self, WalkDir, DirEntry};
-use crate::tools::to_io_err;
+use crate::tools::{to_io_err, is_hidden};
 
 pub struct FileData {
     pub file: File,
@@ -37,6 +37,7 @@ impl FileData {
 pub struct FileIterConfig {
     max_file_size: u64,
     read_only: bool,
+    skip_hidden_files: bool,
     paths: Vec<WalkDir>,
     blacklist: RegexSet,
 }
@@ -52,6 +53,7 @@ impl FileIterConfig {
         Self {
             paths: paths.into_iter().map(WalkDir::new).collect(),
             read_only: true,
+            skip_hidden_files: true,
             max_file_size: Self::DEFAULT_MAX_FILE_SIZE,
             blacklist: RegexSet::new(&Self::NO_PATHS).unwrap(),
         }
@@ -63,6 +65,10 @@ impl FileIterConfig {
 
     pub fn read_only(self, read_only: bool) -> Self {
         Self { read_only: read_only, ..self }
+    }
+
+    pub fn skip_hidden_files(self, skip_hidden_files: bool) -> Self {
+        Self { skip_hidden_files: skip_hidden_files, ..self }
     }
 
     pub fn skip_files_that_match<S, I>(self, patterns: I) -> Result<Self, regex::Error>
@@ -83,8 +89,12 @@ impl IntoIterator for FileIterConfig {
         let blacklist = self.blacklist;
         let max_file_size = self.max_file_size;
         let read_only = self.read_only;
+        let skip_hidden_files = self.skip_hidden_files;
 
         let not_blacklisted = move |entry: &DirEntry| {
+            if skip_hidden_files && is_hidden(entry.file_name()) {
+                return false;
+            }
             !blacklist.is_match(&entry.path().to_string_lossy())
         };
 
@@ -148,6 +158,32 @@ mod tests {
     use super::*;
     use std::fs;
     use std::io::Write;
+
+    #[test]
+    fn skips_hidden_files() {
+        fs::create_dir_all("test-files/hidden-tests")
+            .expect("unable to creat directory");
+        let files = [
+            "test-files/hidden-tests/.secret",
+            "test-files/hidden-tests/public",
+        ];
+        files.iter().for_each(|f| {
+            fs::File::create(f).expect("unable to create file");
+        });
+
+        let fi = FileIterConfig::new(&["test-files/hidden-tests"])
+            .skip_hidden_files(true);
+        let files_searched: Vec<String> = fi
+            .into_iter()
+            .map(Result::unwrap)
+            .map(|fd| fd.path().to_string_lossy().to_string())
+            .collect();
+        assert_eq!(files_searched.len(), 1);
+        assert_eq!(files_searched[0], "test-files/hidden-tests/public".to_string());
+
+        fs::remove_dir_all("test-files/hidden-tests")
+            .expect("unable to clean up test");
+    }
 
     #[test]
     fn skips_files_in_blacklist() {
