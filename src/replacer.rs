@@ -1,6 +1,7 @@
-use std::io::{self, Error, ErrorKind};
+use std::io;
 use std::borrow::Cow::{Borrowed, Owned};
 use regex::Regex;
+use crate::tools::to_io_err;
 
 #[derive(Debug)]
 pub struct Replacer<'a> {
@@ -10,9 +11,9 @@ pub struct Replacer<'a> {
 
 impl<'a> Replacer<'a> {
     pub fn new(pattern: &'_ str, replacement: &'a str) -> io::Result<Replacer<'a>> {
-        let re = Regex::new(pattern).map_err(|regex_err| {
-            Error::new(ErrorKind::Other, regex_err.to_string())
-        })?;
+        let re = Regex::new(pattern)
+            .map_err(|regex_err| { regex_err.to_string() })
+            .map_err(to_io_err)?;
 
         Ok(Replacer {
             pattern: re,

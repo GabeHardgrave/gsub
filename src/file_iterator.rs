@@ -3,6 +3,7 @@ use std::path::{Path};
 use std::fs::{File, OpenOptions, Metadata};
 use regex::{self, RegexSet};
 use walkdir::{self, WalkDir, DirEntry};
+use crate::tools::to_io_err;
 
 pub struct FileData {
     pub file: File,
@@ -20,12 +21,10 @@ impl FileData {
             .append(false)
             .create(false)
             .open(dir_entry.path())
-            .map_err(|io_error| {
-                io::Error::new(
-                    io::ErrorKind::Other,
-                    format!("Failed to open {}: {}", dir_entry.path().to_string_lossy(), io_error)
-                )
-            })?;
+            .map_err(|io_err| {
+                format!("Failed to open {}: {}", dir_entry.path().to_string_lossy(), io_err)
+            })
+            .map_err(to_io_err)?;
 
         Ok(Self {
             file: file,
