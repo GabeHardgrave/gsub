@@ -79,31 +79,67 @@ impl IntoIterator for FileIterConfig {
     type IntoIter = Box<dyn Iterator<Item = Self::Item>>;
 
     fn into_iter(self) -> Self::IntoIter {
-        let paths = self.paths;
+        let mut paths = self.paths;
         let blacklist = self.blacklist;
         let max_file_size = self.max_file_size;
         let read_only = self.read_only;
 
-        let not_blacklisted = move |dir_entry: &DirEntry| {
-            !blacklist.is_match(&dir_entry.path().to_string_lossy())
+        let not_blacklisted = move |entry: &DirEntry| {
+            !blacklist.is_match(&entry.path().to_string_lossy())
         };
 
-        let pluck_meta_data = |dir_entry: DirEntry| {
-            dir_entry.metadata().map(|meta_data| (dir_entry, meta_data)).ok()
+        let pluck_meta_data = |entry: DirEntry| {
+            entry.metadata().map(|meta_data| (entry, meta_data)).ok()
         };
 
-        Box::new(paths
-            .into_iter()
-            .flat_map(WalkDir::into_iter)
-            .filter_map(Result::ok)
-            .filter(not_blacklisted)
-            .filter_map(pluck_meta_data)
-            .filter(move |(_entry, meta_data)| meta_data.len() <= max_file_size)
-            .filter(|(_entry, meta_data)| meta_data.is_file())
-            .map(move |(entry, meta_data)|
-                FileData::open(entry, meta_data, read_only)
+        let open_small_file = move |(entry, meta_data): (DirEntry, Metadata)| {
+            if !meta_data.is_file() || meta_data.len() > max_file_size {
+                return None;
+            }
+            Some(FileData::open(entry, meta_data, read_only))
+        };
+
+        // This conditional is to support a non-trivial optimization. Namely, that
+        // walkdir::FilterEntry is more efficient than the standard Iterator::filter method.
+        // This is because FilterEntry skips recursing into directories that don't match the
+        // filter, whereas the standard `filter` iterator adaptor still descends into a directory
+        // that doesn't satisfy the predicate.
+        //
+        // I originally tried to use
+        // ```
+        // paths
+        //     .into_iter()
+        //     .flat_map(move |walk_dir| {
+        //         walk_dir.into_iter().filter_entry(not_blacklisted)
+        //     })
+        //     .filter(/* the rest of the filter adaptors */)
+        // ```
+        //
+        // Unfortunately, this led to compiler errors as `not_blacklisted` was being used after
+        // move.
+        //
+        // I couldn't find a generic way around this compiler error, so this was the optimization
+        // I decided on. By unwrapping the WalkDir struct when there is only one, we can use
+        // .filter_entry over .filter without generating compiler errors.
+        if paths.len() == 1 {
+            let walk_dir = paths.pop().unwrap();
+            Box::new(walk_dir
+                .into_iter()
+                .filter_entry(not_blacklisted)
+                .filter_map(Result::ok)
+                .filter_map(pluck_meta_data)
+                .filter_map(open_small_file)
             )
-        )
+        } else {
+            Box::new(paths
+                .into_iter()
+                .flat_map(WalkDir::into_iter)
+                .filter_map(Result::ok)
+                .filter(not_blacklisted)
+                .filter_map(pluck_meta_data)
+                .filter_map(open_small_file)
+            )
+        }
     }
 }
 
