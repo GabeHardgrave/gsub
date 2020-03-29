@@ -3,9 +3,9 @@ use structopt::StructOpt;
 use gsub::opts::Opts;
 
 fn main() -> std::io::Result<()> {
-    let options = Opts::from_args();
+    let mut options = Opts::from_args();
+    let file_iter = options.file_iter_config()?;
     let replacer = options.get_replacer()?;
-    let file_iter = options.file_iter_config();
 
     let mut buffer = String::new();
     for mut fd in file_iter {

@@ -7,7 +7,7 @@ gsub 0.1.0
 Regex substitution for files and directories
 
 USAGE:
-    gsub [FLAGS] [OPTIONS] <pattern> <replacement> [files]...
+    gsub [FLAGS] [OPTIONS] <pattern> <replacement> [--] [files]...
 
 FLAGS:
     -d, --dry-run    
@@ -16,6 +16,7 @@ FLAGS:
     -v, --verbose    
 
 OPTIONS:
+    -e, --except <files-to-skip>...                 Files/Directories to skip
     -m, --skip-files-larger-than <max-file-size>    Skip files larger than the given number of bytes [default: 4194304]
 
 ARGS:

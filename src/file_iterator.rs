@@ -109,6 +109,34 @@ mod tests {
     use std::io::Write;
 
     #[test]
+    fn skips_files_in_blacklist() {
+        fs::create_dir_all("test-files/blacklist-tests")
+            .expect("unable to creat directory");
+        let files = [
+            "test-files/blacklist-tests/test.py",
+            "test-files/blacklist-tests/test.rb",
+            "test-files/blacklist-tests/test.rs",
+        ];
+        files.iter().for_each(|f| {
+            fs::File::create(f).expect("unable to create file");
+        });
+
+        let fi = FileIterConfig::new(&["test-files/blacklist-tests"])
+            .skip_files_that_match(&[r"(.*)\.py", r"(.*)\.rb"])
+            .expect("failed to compile regex set");
+
+        let files_searched: Vec<String> = fi
+            .into_iter()
+            .map(|fd| fd.path().to_string_lossy().to_string())
+            .collect();
+        assert_eq!(files_searched.len(), 1);
+        assert_eq!(files_searched[0], "test-files/blacklist-tests/test.rs".to_string());
+
+        fs::remove_dir_all("test-files/blacklist-tests")
+            .expect("unable to clean up test");
+    }
+
+    #[test]
     fn skips_directories() {
         let dirs = [
             "test-files/file_iterator_tests/alpha",
