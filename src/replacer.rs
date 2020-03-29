@@ -1,7 +1,6 @@
-use std::borrow::Cow::{Borrowed, Owned};
 use std::io::{self, Error, ErrorKind};
+use std::borrow::Cow::{Borrowed, Owned};
 use regex::Regex;
-use crate::opts::Opts;
 
 #[derive(Debug)]
 pub struct Replacer<'a> {
@@ -9,14 +8,8 @@ pub struct Replacer<'a> {
     replacement: &'a str,
 }
 
-impl Opts {
-    pub fn get_replacer(&self) -> io::Result<Replacer> {
-        Replacer::new(&self.pattern, &self.replacement)
-    }
-}
-
 impl<'a> Replacer<'a> {
-    fn new(pattern: &'_ str, replacement: &'a str) -> io::Result<Replacer<'a>> {
+    pub fn new(pattern: &'_ str, replacement: &'a str) -> io::Result<Replacer<'a>> {
         let re = Regex::new(pattern).map_err(|regex_err| {
             Error::new(ErrorKind::Other, regex_err.to_string())
         })?;

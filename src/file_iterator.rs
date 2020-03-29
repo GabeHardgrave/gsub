@@ -1,8 +1,8 @@
 use std::io;
-use std::path::{Path, PathBuf};
+use std::path::{Path};
 use std::fs::{File, OpenOptions, Metadata};
+use regex::{self, RegexSet};
 use walkdir::{self, WalkDir, DirEntry};
-use crate::opts::Opts;
 
 pub struct FileData {
     pub file: File,
@@ -11,92 +11,102 @@ pub struct FileData {
 }
 
 impl FileData {
-    pub fn path(&self) -> &Path {
-        self.dir_entry.path()
+    pub fn path(&self) -> &Path { self.dir_entry.path() }
+
+    fn open(dir_entry: DirEntry, meta_data: Metadata, read_only: bool) -> io::Result<FileData> {
+        let file = OpenOptions::new()
+            .read(true)
+            .write(!read_only)
+            .append(false)
+            .create(false)
+            .open(dir_entry.path())?;
+
+        Ok(Self {
+            file: file,
+            dir_entry: dir_entry,
+            meta_data: meta_data,
+        })
     }
 }
 
-type DynFileIter = Box<dyn Iterator<Item=walkdir::Result<DirEntry>>>;
-
-struct FileIterConfig {
+pub struct FileIterConfig {
     max_file_size: u64,
-    dir_entries: DynFileIter,
     read_only: bool,
+    paths: Vec<WalkDir>,
+    blacklist: RegexSet,
 }
 
 impl FileIterConfig {
-    fn new(max_file_size: usize, paths: Vec<PathBuf>, read_only: bool) -> FileIterConfig {
-        let dir_entries: DynFileIter = if paths.is_empty() {
-            Box::new(WalkDir::new(".").into_iter())
-        } else {
-            Box::new(paths.into_iter().map(WalkDir::new).flat_map(WalkDir::into_iter))
-        };
+    const NO_PATHS: [&'static str; 0] = [];
+    const DEFAULT_MAX_FILE_SIZE: u64 = 4_194_304;
 
-        FileIterConfig {
-            max_file_size: max_file_size as u64,
-            dir_entries: dir_entries,
-            read_only: read_only
+    pub fn new<P, I>(paths: I) -> Self
+        where P: AsRef<Path>,
+              I: IntoIterator<Item = P>
+    {
+        Self {
+            paths: paths.into_iter().map(WalkDir::new).collect(),
+            read_only: true,
+            max_file_size: Self::DEFAULT_MAX_FILE_SIZE,
+            blacklist: RegexSet::new(&Self::NO_PATHS).unwrap(),
         }
     }
 
-    fn files(self) -> impl Iterator<Item=FileData> {
+    pub fn skip_files_larger_than(self, size: usize) -> Self {
+        Self { max_file_size: size as u64, ..self }
+    }
+
+    pub fn read_only(self, read_only: bool) -> Self {
+        Self { read_only: read_only, ..self }
+    }
+
+    pub fn skip_files_that_match<S, I>(self, patterns: I) -> Result<Self, regex::Error>
+        where S: AsRef<str>,
+              I: IntoIterator<Item = S>
+    {
+        let paths_to_skip = RegexSet::new(patterns)?;
+        Ok(Self { blacklist: paths_to_skip, ..self })
+    }
+}
+
+impl IntoIterator for FileIterConfig {
+    type Item = FileData;
+    type IntoIter = Box<dyn Iterator<Item = Self::Item>>;
+
+    fn into_iter(self) -> Self::IntoIter {
+        let paths = self.paths;
+        let blacklist = self.blacklist;
         let max_file_size = self.max_file_size;
         let read_only = self.read_only;
 
-        self.dir_entries
-            .filter_map(pluck_dir_entry_and_metadata)
+        let not_blacklisted = move |dir_entry: &DirEntry| {
+            !blacklist.is_match(&dir_entry.path().to_string_lossy())
+        };
+
+        let pluck_meta_data = |dir_entry: DirEntry| {
+            dir_entry.metadata().map(|meta_data| (dir_entry, meta_data)).ok()
+        };
+
+        Box::new(paths
+            .into_iter()
+            .flat_map(WalkDir::into_iter)
+            .filter_map(Result::ok)
+            .filter(not_blacklisted)
+            .filter_map(pluck_meta_data)
             .filter(move |(_entry, meta_data)| meta_data.len() <= max_file_size)
             .filter(|(_entry, meta_data)| meta_data.is_file())
-            .filter_map(move |(entry, meta_data)| {
-                open_file(&entry, read_only)
-                    .map(|f| (entry, meta_data, f))
-                    .ok()
-            })
-            .map(|(entry, meta_data, file)| FileData {
-                file: file,
-                meta_data: meta_data,
-                dir_entry: entry,
-            })
+            .filter_map(move |(entry, meta_data)|
+                FileData::open(entry, meta_data, read_only).ok()
+            )
+        )
     }
-}
-
-impl Opts {
-    pub fn files(&self) -> impl Iterator<Item=FileData> {
-        self.file_iter_config().files()
-    }
-
-    fn file_iter_config(&self) -> FileIterConfig {
-        // Getting `FileIterConfig::new` to accept a reference proved fairly challenging.
-        // Since only one `Opts` struct will exist, and since `.files` is a user defined list,
-        // I'm really not worried about the runtime penalty of cloning
-        let paths = self.files.clone();
-        FileIterConfig::new(self.max_file_size, paths, self.dry_run)
-    }
-}
-
-fn pluck_dir_entry_and_metadata(
-    dir_entry: walkdir::Result<DirEntry>,
-) -> Option<(DirEntry, Metadata)>
-{
-    let entry = dir_entry.ok()?;
-    let meta_data = entry.metadata().ok()?;
-    Some((entry, meta_data))
-}
-
-fn open_file(dir_entry: &DirEntry, read_only: bool) -> io::Result<File> {
-    OpenOptions::new()
-        .read(true)
-        .write(!read_only)
-        .append(false)
-        .create(false)
-        .open(dir_entry.path())
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
     use std::fs;
-    use std::io::{Read, Write};
+    use std::io::Write;
 
     #[test]
     fn skips_directories() {
@@ -120,12 +130,8 @@ mod tests {
             fs::File::create(f).expect("unable to create file");
         });
 
-        let fi = FileIterConfig::new(
-            100,
-            vec!["test-files/file_iterator_tests".into()],
-            true,
-        );
-        let files_searched = fi.files().map(|f| {
+        let fi = FileIterConfig::new(&["test-files/file_iterator_tests"]);
+        let files_searched = fi.into_iter().map(|f| {
             assert!(f.meta_data.is_file());
             f
         }).count();
@@ -142,21 +148,14 @@ mod tests {
         fs::write("test-files/too_big.txt",    b"0123456789A")
             .expect("unable to create file");
 
-        let mut files: Vec<File> = FileIterConfig::new(
-            10,
-            vec![
-                "test-files/big_enough.txt".into(),
-                "test-files/too_big.txt".into(),
-            ],
-            true,
-        ).files().map(|fd| fd.file).collect();
+        let fi = FileIterConfig::new(&[
+            "test-files/big_enough.txt",
+            "test-files/too_big.txt",
+        ]).skip_files_larger_than(10);
+
+        let mut files: Vec<FileData> = fi.into_iter().collect();
         assert_eq!(files.len(), 1);
-
-        let mut buff = Vec::new();
-        files.pop().unwrap().read_to_end(&mut buff).expect("unable to check file");
-
-        let s = String::from_utf8(buff).unwrap();
-        assert_eq!("0123456789".to_string(), s);
+        assert_eq!(files.pop().unwrap().path().to_string_lossy(), "test-files/big_enough.txt");
 
         fs::remove_file("test-files/big_enough.txt")
             .expect("unable to clean up test");
@@ -165,25 +164,29 @@ mod tests {
     }
 
     #[test]
-    fn only_opens_files_with_correct_permissions() {
+    fn opens_files_in_read_only_mode_when_specified() {
         fs::File::create("test-files/no-touching").expect("unable to create file");
-        let mut f = FileIterConfig::new(
-            100,
-            vec!["test-files/no-touching".into()],
-            true,
-        ).files().map(|fd| fd.file).next().expect("didn't find the expected file");
+
+        let fi = FileIterConfig::new(&["test-files/no-touching"])
+            .read_only(true);
+        let mut f = fi.into_iter()
+            .map(|fd| fd.file).next().expect("didn't find the expected file");
         let attempt = f.write_all(b"I'm touching");
         assert!(attempt.is_err(), "{:?}", attempt);
-        fs::remove_file("test-files/no-touching").expect("unable to clean up test");
 
+        fs::remove_file("test-files/no-touching").expect("unable to clean up test");
+    }
+
+    #[test]
+    fn opens_files_in_write_mode_when_specified() {
         fs::File::create("test-files/ok-touching").expect("unable to create file");
-        let mut f = FileIterConfig::new(
-            100,
-            vec!["test-files/ok-touching".into()],
-            false,
-        ).files().map(|fd| fd.file).next().expect("didn't find the expected file");
+
+        let fi = FileIterConfig::new(&["test-files/ok-touching"])
+            .read_only(false);
+        let mut f = fi.into_iter().map(|fd| fd.file).next().expect("didn't find the expected file");
         let attempt = f.write_all(b"I'm touching");
         assert!(attempt.is_ok(), "{:?}", attempt);
+
         fs::remove_file("test-files/ok-touching").expect("unable to clean up test");
     }
 }

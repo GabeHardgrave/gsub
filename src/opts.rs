@@ -1,5 +1,8 @@
-use structopt::StructOpt;
+use std::io;
 use std::path::PathBuf;
+use structopt::StructOpt;
+use crate::file_iterator::FileIterConfig;
+use crate::replacer::Replacer;
 
 static DEFAULT_FILE_SIZE: &str = "4194304";
 
@@ -25,4 +28,16 @@ pub struct Opts {
     /// List of files/directories you want to gsub on. If unspecified, uses the current directory.
     #[structopt(parse(from_os_str))]
     pub files: Vec<PathBuf>
+}
+
+impl Opts {
+    pub fn get_replacer(&self) -> io::Result<Replacer> {
+        Replacer::new(&self.pattern, &self.replacement)
+    }
+
+    pub fn file_iter_config(&self) -> FileIterConfig {
+        FileIterConfig::new(self.files.clone())
+            .read_only(self.dry_run)
+            .skip_files_larger_than(self.max_file_size)
+    }
 }
