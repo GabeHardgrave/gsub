@@ -3,6 +3,7 @@ use std::path::PathBuf;
 use structopt::StructOpt;
 use crate::file_iterator::FileIterConfig;
 use crate::replacer::Replacer;
+use crate::presenter::Presenter;
 
 static DEFAULT_FILE_SIZE: &str = "4194304";
 
@@ -47,8 +48,12 @@ impl Opts {
         opts
     }
 
-    pub fn get_replacer(&self) -> io::Result<Replacer> {
+    pub fn replacer(&self) -> io::Result<Replacer> {
         Replacer::new(&self.pattern, &self.replacement)
+    }
+
+    pub fn presenter(&self) -> Presenter {
+        Presenter::new(self.verbose)
     }
 
     pub fn file_iter_config(&self) -> io::Result<FileIterConfig> {
