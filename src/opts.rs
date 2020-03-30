@@ -5,9 +5,7 @@ use crate::file_iterator::FileIterConfig;
 use crate::replacer::Replacer;
 use crate::presenter::Presenter;
 use crate::tools::to_io_err;
-
-static DEFAULT_FILE_SIZE: &str = "4194304";
-pub static CURRENT_DIR: &str = ".";
+use crate::{DEFAULT_FILE_SIZE_STR, CURRENT_DIR};
 
 #[derive(Debug, StructOpt)]
 #[structopt(name = "gsub", about = "Regex substitution for files and directories")]
@@ -29,7 +27,7 @@ pub struct Opts {
     pub replacement: String,
 
     /// Skip files larger than the given number of bytes.
-    #[structopt(short = "m", long = "skip-files-larger-than", default_value = DEFAULT_FILE_SIZE)]
+    #[structopt(short = "m", long = "skip-files-larger-than", default_value = DEFAULT_FILE_SIZE_STR)]
     pub max_file_size: usize,
 
     /// Files/Directories to skip

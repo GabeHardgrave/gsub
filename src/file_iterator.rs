@@ -3,6 +3,7 @@ use std::path::Path;
 use std::fs::Metadata;
 use regex::{self, RegexSet};
 use walkdir::{self, WalkDir, DirEntry};
+use crate::DEFAULT_FILE_SIZE_INT;
 use crate::tools::is_hidden;
 use crate::file_data::FileData;
 
@@ -16,7 +17,6 @@ pub struct FileIterConfig {
 
 impl FileIterConfig {
     const NO_PATHS: [&'static str; 0] = [];
-    const DEFAULT_MAX_FILE_SIZE: u64 = 4_194_304;
 
     pub fn new<P, I>(paths: I) -> Self
         where P: AsRef<Path>,
@@ -26,7 +26,7 @@ impl FileIterConfig {
             paths: paths.into_iter().map(WalkDir::new).collect(),
             read_only: true,
             skip_hidden_files: true,
-            max_file_size: Self::DEFAULT_MAX_FILE_SIZE,
+            max_file_size: *DEFAULT_FILE_SIZE_INT,
             blacklist: RegexSet::new(&Self::NO_PATHS).unwrap(),
         }
     }

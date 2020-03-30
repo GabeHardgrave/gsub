@@ -1,7 +1,7 @@
 use std::io;
 use std::ffi::{OsStr, OsString};
 use std::path::{Path, PathBuf};
-use crate::opts;
+use crate::{GSUB_EXT, GSUB_EXT_NAME, CURRENT_DIR};
 
 pub fn to_io_err(msg: String) -> io::Error {
     io::Error::new(
@@ -13,7 +13,7 @@ pub fn to_io_err(msg: String) -> io::Error {
 pub fn is_hidden<R>(path: R) -> bool where R: AsRef<OsStr> {
     path.as_ref()
         .to_str()
-        .map(|s| s.starts_with(".") && s != opts::CURRENT_DIR)
+        .map(|s| s.starts_with(".") && s != CURRENT_DIR)
         .unwrap_or(false)
 }
 
@@ -23,9 +23,9 @@ pub fn add_gsub_ext(path: impl AsRef<Path>) -> PathBuf {
         .extension()
         .map(OsString::from)
         .map(|mut ext| {
-            ext.push(OsStr::new(".gsub"));
+            ext.push(OsStr::new(GSUB_EXT));
             ext
-        }).unwrap_or_else(|| OsString::from("gsub"));
+        }).unwrap_or_else(|| OsString::from(GSUB_EXT_NAME));
     file_name.set_extension(new_ext);
     file_name
 }
