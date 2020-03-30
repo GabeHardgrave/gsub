@@ -1,8 +1,8 @@
-use std::io::{self, Read};
+use std::io;
 use std::borrow::Cow::{Borrowed, Owned};
 use regex::Regex;
 use crate::tools::to_io_err;
-use crate::file_data::FileData;
+use crate::file_data::SizedRW;
 
 #[derive(Debug)]
 pub struct Replacer<'a> {
@@ -32,18 +32,18 @@ impl<'a> Replacer<'a> {
 
     pub fn old_contents(&self) -> &str { &self.buffer }
 
-    pub fn gsub(&mut self, fd: &mut FileData) -> GsubResult {
+    pub fn gsub(&mut self, fd: &mut impl SizedRW) -> GsubResult {
         self.prep_buffer_for_new_file(fd);
-        if let Err(e) = fd.file.read_to_string(&mut self.buffer) {
+        if let Err(e) = fd.read_to_string(&mut self.buffer) {
             return GsubResult::Error(e);
         }
         self.replace(&self.buffer)
     }
 
-    fn prep_buffer_for_new_file(&mut self, fd: &FileData) {
+    fn prep_buffer_for_new_file(&mut self, fd: & impl SizedRW) {
         self.buffer.clear();
-        if fd.meta_data.len() as usize > self.buffer.capacity() {
-            self.buffer.reserve(fd.meta_data.len() as usize - self.buffer.capacity());
+        if fd.byte_size() > self.buffer.capacity() {
+            self.buffer.reserve(fd.byte_size() as usize - self.buffer.capacity());
         }
     }
 
@@ -58,6 +58,7 @@ impl<'a> Replacer<'a> {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::file_data::tests::MockFileData;
 
     impl GsubResult {
         fn expect(self, msg: &'static str) -> String {
@@ -92,10 +93,12 @@ error: repetition operator missing expression";
 
     #[test]
     fn replaces_simple_words() {
-        let r = Replacer::new("Spongebob", "Squidward")
+        let mut r = Replacer::new("Spongebob", "Squidward")
             .expect("a simple word like 'Spongebob' is getting rejected by Regex");
-        let og = "Who lives in an Easter-Island Head under the sea?\nSpongebob Tentacles!";
-        let replaced = r.replace(og)
+        let mut file = MockFileData::new(
+            "Who lives in an Easter-Island Head under the sea?\nSpongebob Tentacles!"
+        );
+        let replaced = r.gsub(&mut file)
             .expect("'Spongebob' should've been replaced with 'Squidward'");
         assert_eq!(
             replaced,
@@ -104,16 +107,18 @@ error: repetition operator missing expression";
     }
 
     #[test]
-    fn returns_none_when_no_replacement_can_be_made() {
-        let r = Replacer::new("capicola", "gabagool")
+    fn returns_no_change_when_no_replacement_can_be_made() {
+        let mut r = Replacer::new("capicola", "gabagool")
             .expect("What's wrong with 'capicola'?");
-        let og = "The best part of The Sopranos is the gabagool!";
-        assert!(r.replace(og).no_change());
+        let mut file = MockFileData::new(
+            "The best part of The Sopranos is the gabagool!"
+        );
+        assert!(r.gsub(&mut file).no_change());
     }
 
     #[test]
     fn replaces_multiline_patterns() {
-        let wet_code = "\
+        let mut wet_code = MockFileData::new("\
 foo()
 bar()
 baz()
@@ -123,8 +128,8 @@ baz()
 foo()
 bar()
 gabagool()\
-        ";
-        let r = Replacer::new(
+        ");
+        let mut r = Replacer::new(
             r"foo\(\)\nbar\(\)",
             "foo_and_bar()"
         ).expect("What's wrong with a multiline replacement?");
@@ -137,7 +142,7 @@ baz()
 foo_and_bar()
 gabagool()\
         ".to_string();
-        let dryed_code = r.replace(wet_code).expect("Unable to dedup");
+        let dryed_code = r.gsub(&mut wet_code).expect("Unable to dedup");
         assert_eq!(dryed_code, expected_dry_code);
     }
 }

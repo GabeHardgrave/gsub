@@ -34,8 +34,8 @@ fn main() -> std::io::Result<()> {
                 new_contents
             ));
         } else {
-            fd.file.seek(SeekFrom::Start(0))?;
-            fd.file.write_all(&new_contents.as_bytes())?;
+            fd.seek(SeekFrom::Start(0))?;
+            fd.write_all(&new_contents.as_bytes())?;
         }
     }
     Ok(())
