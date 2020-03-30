@@ -2,7 +2,7 @@ use std::io::{self, Read};
 use std::borrow::Cow::{Borrowed, Owned};
 use regex::Regex;
 use crate::tools::to_io_err;
-use crate::file_iterator::FileData;
+use crate::file_data::FileData;
 
 #[derive(Debug)]
 pub struct Replacer<'a> {
