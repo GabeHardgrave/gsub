@@ -6,6 +6,7 @@ use crate::replacer::Replacer;
 use crate::presenter::Presenter;
 
 static DEFAULT_FILE_SIZE: &str = "4194304";
+pub static CURRENT_DIR: &str = ".";
 
 #[derive(Debug, StructOpt)]
 #[structopt(name = "gsub", about = "Regex substitution for files and directories")]
@@ -43,7 +44,7 @@ impl Opts {
     pub fn parse() -> Self {
         let mut opts = Self::from_args();
         if opts.files.is_empty() {
-            opts.files.push(".".into()) // current directory
+            opts.files.push(CURRENT_DIR.into())
         }
         opts
     }
