@@ -57,6 +57,15 @@ impl Seek for FileData {
 pub trait SizedReader: ByteSized + Read {}
 impl SizedReader for FileData {}
 
+pub trait OverWrite: Seek + Write {
+    fn overwrite(&mut self, contents: &[u8]) -> Result<()> {
+        self.seek(SeekFrom::Start(0))?;
+        self.write_all(contents)?;
+        self.flush()
+    }
+}
+impl OverWrite for FileData {}
+
 #[cfg(test)]
 pub mod tests {
     use super::*;
@@ -67,18 +76,29 @@ pub mod tests {
             MockFileData(Cursor::new(bytes.into()))
         }
     }
+
     impl ByteSized for MockFileData {
         fn byte_size(&self) -> usize { self.0.get_ref().len() }
     }
-    impl Seek for MockFileData {
-        fn seek(&mut self, pos: SeekFrom) -> Result<u64> { self.0.seek(pos) }
-    }
     impl Read for MockFileData {
         fn read(&mut self, buf: &mut [u8]) -> Result<usize> { self.0.read(buf) }
+    }
+    impl SizedReader for MockFileData {}
+
+    impl Seek for MockFileData {
+        fn seek(&mut self, pos: SeekFrom) -> Result<u64> { self.0.seek(pos) }
     }
     impl Write for MockFileData {
         fn write(&mut self, buf: &[u8]) -> Result<usize> { self.0.write(buf) }
         fn flush(&mut self) -> Result<()> { self.0.flush() }
     }
-    impl SizedReader for MockFileData {}
+    impl OverWrite for MockFileData {}
+
+    #[test]
+    fn overwrites_the_entire_file() {
+        let mut file = MockFileData::new("oat milk is tasty");
+        file.write("almond".as_bytes()).expect("WTF?");
+        file.overwrite("soy milk is superb".as_bytes()).expect("WTF?");
+        assert_eq!(&file.0.get_ref().as_slice(), &"soy milk is superb".as_bytes());
+    }
 }

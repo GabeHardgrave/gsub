@@ -1,5 +1,5 @@
-use std::io::{Write, Seek, SeekFrom};
 use gsub::opts::Opts;
+use gsub::file_data::OverWrite;
 use gsub::replacer::GsubResult;
 
 fn main() -> std::io::Result<()> {
@@ -34,8 +34,7 @@ fn main() -> std::io::Result<()> {
                 new_contents
             ));
         } else {
-            fd.seek(SeekFrom::Start(0))?;
-            fd.write_all(&new_contents.as_bytes())?;
+            fd.overwrite(&new_contents.as_bytes())?;
             presenter.wax(format!("Updated {}", fd.path().to_string_lossy()));
         }
     }
