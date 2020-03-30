@@ -54,8 +54,8 @@ impl Seek for FileData {
     fn seek(&mut self, pos: SeekFrom) -> Result<u64> { self.file.seek(pos) }
 }
 
-pub trait SizedRW: ByteSized + Read + Write + Seek {}
-impl SizedRW for FileData {}
+pub trait SizedReader: ByteSized + Read {}
+impl SizedReader for FileData {}
 
 #[cfg(test)]
 pub mod tests {
@@ -80,5 +80,5 @@ pub mod tests {
         fn write(&mut self, buf: &[u8]) -> Result<usize> { self.0.write(buf) }
         fn flush(&mut self) -> Result<()> { self.0.flush() }
     }
-    impl SizedRW for MockFileData {}
+    impl SizedReader for MockFileData {}
 }

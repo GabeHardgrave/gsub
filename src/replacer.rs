@@ -2,7 +2,7 @@ use std::io;
 use std::borrow::Cow::{Borrowed, Owned};
 use regex::Regex;
 use crate::tools::to_io_err;
-use crate::file_data::SizedRW;
+use crate::file_data::SizedReader;
 
 #[derive(Debug)]
 pub struct Replacer<'a> {
@@ -32,7 +32,7 @@ impl<'a> Replacer<'a> {
 
     pub fn old_contents(&self) -> &str { &self.buffer }
 
-    pub fn gsub(&mut self, fd: &mut impl SizedRW) -> GsubResult {
+    pub fn gsub(&mut self, fd: &mut impl SizedReader) -> GsubResult {
         self.prep_buffer_for_new_file(fd);
         if let Err(e) = fd.read_to_string(&mut self.buffer) {
             return GsubResult::Error(e);
@@ -40,7 +40,7 @@ impl<'a> Replacer<'a> {
         self.replace(&self.buffer)
     }
 
-    fn prep_buffer_for_new_file(&mut self, fd: & impl SizedRW) {
+    fn prep_buffer_for_new_file(&mut self, fd: & impl SizedReader) {
         self.buffer.clear();
         if fd.byte_size() > self.buffer.capacity() {
             self.buffer.reserve(fd.byte_size() as usize - self.buffer.capacity());
