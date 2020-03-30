@@ -10,11 +10,12 @@ USAGE:
     gsub [FLAGS] [OPTIONS] <pattern> <replacement> [--] [files]...
 
 FLAGS:
-    -d, --dry-run    
-        --help       Prints help information
-    -h, --hidden     Do not skip hidden files and directories
-    -V, --version    Prints version information
-    -v, --verbose    
+    -c, --copy-on-write    Copies files instead of editing them
+    -d, --dry-run          
+        --help             Prints help information
+    -h, --hidden           Do not skip hidden files and directories
+    -V, --version          Prints version information
+    -v, --verbose          
 
 OPTIONS:
     -e, --except <files-to-skip>...                 Files/Directories to skip

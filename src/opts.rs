@@ -4,6 +4,7 @@ use structopt::StructOpt;
 use crate::file_iterator::FileIterConfig;
 use crate::replacer::Replacer;
 use crate::presenter::Presenter;
+use crate::tools::to_io_err;
 
 static DEFAULT_FILE_SIZE: &str = "4194304";
 pub static CURRENT_DIR: &str = ".";
@@ -13,6 +14,10 @@ pub static CURRENT_DIR: &str = ".";
 pub struct Opts {
     #[structopt(short, long)]
     pub dry_run: bool,
+
+    /// Copies files instead of editing them
+    #[structopt(short, long)]
+    pub copy_on_write: bool,
 
     #[structopt(short, long)]
     pub verbose: bool,
@@ -41,12 +46,17 @@ pub struct Opts {
 }
 
 impl Opts {
-    pub fn parse() -> Self {
+    pub fn parse() -> io::Result<Self> {
         let mut opts = Self::from_args();
         if opts.files.is_empty() {
             opts.files.push(CURRENT_DIR.into())
         }
-        opts
+        if opts.copy_on_write && opts.dry_run {
+            return Err(to_io_err(
+                "--dry-run and --copy-on-write are incompatible flags".to_string()
+            ));
+        }
+        Ok(opts)
     }
 
     pub fn replacer(&self) -> io::Result<Replacer> {
@@ -59,7 +69,7 @@ impl Opts {
 
     pub fn file_iter_config(&self) -> io::Result<FileIterConfig> {
         FileIterConfig::new(&self.files)
-            .read_only(self.dry_run)
+            .read_only(self.dry_run || self.copy_on_write)
             .skip_files_larger_than(self.max_file_size)
             .skip_hidden_files(!self.show_hidden_files)
             .skip_files_that_match(&self.files_to_skip)

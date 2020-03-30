@@ -1,9 +1,11 @@
+use std::fs;
 use gsub::opts::Opts;
 use gsub::file_data::OverWrite;
 use gsub::replacer::GsubResult;
+use gsub::tools::add_gsub_ext;
 
 fn main() -> std::io::Result<()> {
-    let options = Opts::parse();
+    let options = Opts::parse()?;
     let file_iter = options.file_iter_config()?;
     let mut replacer = options.replacer()?;
     let presenter = options.presenter();
@@ -29,10 +31,10 @@ fn main() -> std::io::Result<()> {
         };
 
         if options.dry_run {
-            presenter.wax(format!("Would have replaced `{}` with `{}`",
-                replacer.old_contents(),
-                new_contents
-            ));
+            presenter.wax(format!("Would have updated {}", fd.path().to_string_lossy()));
+        } else if options.copy_on_write {
+            let new_file_name = add_gsub_ext(fd.path());
+            fs::write(new_file_name, new_contents)?;
         } else {
             fd.overwrite(&new_contents.as_bytes())?;
             presenter.wax(format!("Updated {}", fd.path().to_string_lossy()));
