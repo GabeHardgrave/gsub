@@ -1,12 +1,20 @@
-use std::io;
+use std::io::{self, Read};
 use std::borrow::Cow::{Borrowed, Owned};
 use regex::Regex;
 use crate::tools::to_io_err;
+use crate::file_iterator::FileData;
 
 #[derive(Debug)]
 pub struct Replacer<'a> {
     pattern: Regex,
     replacement: &'a str,
+    buffer: String,
+}
+
+pub enum GsubResult {
+    NoChange,
+    Replaced(String),
+    Error(io::Error),
 }
 
 impl<'a> Replacer<'a> {
@@ -18,13 +26,31 @@ impl<'a> Replacer<'a> {
         Ok(Replacer {
             pattern: re,
             replacement: replacement,
+            buffer: String::new(),
         })
     }
 
-    pub fn replace(&self, s: &'a str) -> Option<String> {
+    pub fn old_contents(&self) -> &str { &self.buffer }
+
+    pub fn gsub(&mut self, fd: &mut FileData) -> GsubResult {
+        self.prep_buffer_for_new_file(fd);
+        if let Err(e) = fd.file.read_to_string(&mut self.buffer) {
+            return GsubResult::Error(e);
+        }
+        self.replace(&self.buffer)
+    }
+
+    fn prep_buffer_for_new_file(&mut self, fd: &FileData) {
+        self.buffer.clear();
+        if fd.meta_data.len() as usize > self.buffer.capacity() {
+            self.buffer.reserve(fd.meta_data.len() as usize - self.buffer.capacity());
+        }
+    }
+
+    fn replace(&self, s: &'a str) -> GsubResult {
         match self.pattern.replace_all(&s, self.replacement) {
-            Borrowed(_) => None,
-            Owned(new_s) => Some(new_s),
+            Borrowed(_) => GsubResult::NoChange,
+            Owned(new_s) => GsubResult::Replaced(new_s),
         }
     }
 }
@@ -32,6 +58,22 @@ impl<'a> Replacer<'a> {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    impl GsubResult {
+        fn expect(self, msg: &'static str) -> String {
+            match self {
+                Self::Replaced(s) => s,
+                _ => panic!(msg)
+            }
+        }
+
+        fn no_change(&self) -> bool {
+            match self {
+                Self::NoChange => true,
+                _ => false,
+            }
+        }
+    }
 
     #[test]
     fn initializer_rejects_bad_patterns() {
@@ -66,7 +108,7 @@ error: repetition operator missing expression";
         let r = Replacer::new("capicola", "gabagool")
             .expect("What's wrong with 'capicola'?");
         let og = "The best part of The Sopranos is the gabagool!";
-        assert!(r.replace(og).is_none());
+        assert!(r.replace(og).no_change());
     }
 
     #[test]
