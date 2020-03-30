@@ -145,4 +145,18 @@ gabagool()\
         let dryed_code = r.gsub(&mut wet_code).expect("Unable to dedup");
         assert_eq!(dryed_code, expected_dry_code);
     }
+
+    #[test]
+    fn replaces_multiple_files_in_a_row_correctly() {
+        let mut f1 = MockFileData::new("capicola isn't vegan");
+        let mut f2 = MockFileData::new("capicola is gluten free");
+        let mut r = Replacer::new(
+            "capicola",
+            "gabagool"
+        ).expect("What's wrong with gabagool");
+        let f1_new = r.gsub(&mut f1).expect("shoulda replaced capicola");
+        let f2_new = r.gsub(&mut f2).expect("shoulda replaced capicola");
+        assert_eq!(f1_new, "gabagool isn't vegan");
+        assert_eq!(f2_new, "gabagool is gluten free");
+    }
 }
