@@ -36,6 +36,7 @@ fn main() -> std::io::Result<()> {
         } else {
             fd.seek(SeekFrom::Start(0))?;
             fd.write_all(&new_contents.as_bytes())?;
+            presenter.wax(format!("Updated {}", fd.path().to_string_lossy()));
         }
     }
     Ok(())
