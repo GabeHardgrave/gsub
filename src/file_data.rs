@@ -45,6 +45,19 @@ impl Read for FileData {
     fn read(&mut self, buf: &mut [u8]) -> Result<usize> { self.file.read(buf) }
 }
 
+pub trait SizedReader: ByteSized + Read {}
+impl SizedReader for FileData {}
+
+pub trait Truncable {
+    fn truncate(&mut self, to: usize) -> Result<()>;
+}
+
+impl Truncable for FileData {
+    fn truncate(&mut self, to: usize) -> Result<()> {
+        self.file.set_len(to as u64)
+    }
+}
+
 impl Write for FileData {
     fn write(&mut self, buf: &[u8]) -> Result<usize> { self.file.write(buf) }
     fn flush(&mut self) -> Result<()> { self.file.flush() }
@@ -54,14 +67,12 @@ impl Seek for FileData {
     fn seek(&mut self, pos: SeekFrom) -> Result<u64> { self.file.seek(pos) }
 }
 
-pub trait SizedReader: ByteSized + Read {}
-impl SizedReader for FileData {}
-
-pub trait OverWrite: Seek + Write {
+pub trait OverWrite: Seek + Write + Truncable {
     fn overwrite(&mut self, contents: &[u8]) -> Result<()> {
         self.seek(SeekFrom::Start(0))?;
         self.write_all(contents)?;
-        self.flush()
+        self.flush()?;
+        self.truncate(contents.len())
     }
 }
 impl OverWrite for FileData {}
@@ -70,6 +81,7 @@ impl OverWrite for FileData {}
 pub mod tests {
     use super::*;
     use std::io::Cursor;
+    use std::str::from_utf8;
     pub struct MockFileData(Cursor<Vec<u8>>);
     impl MockFileData {
         pub fn new(bytes: impl Into<Vec<u8>>) -> MockFileData {
@@ -92,13 +104,32 @@ pub mod tests {
         fn write(&mut self, buf: &[u8]) -> Result<usize> { self.0.write(buf) }
         fn flush(&mut self) -> Result<()> { self.0.flush() }
     }
+    impl Truncable for MockFileData {
+        fn truncate(&mut self, to: usize) -> Result<()> {
+            self.0.get_mut().truncate(to);
+            Ok(())
+        }
+    }
     impl OverWrite for MockFileData {}
 
     #[test]
-    fn overwrites_the_entire_file() {
+    fn overwrites_the_entire_file_for_larger_diffs() {
         let mut file = MockFileData::new("oat milk is tasty");
         file.write("almond".as_bytes()).expect("WTF?");
         file.overwrite("soy milk is superb".as_bytes()).expect("WTF?");
-        assert_eq!(&file.0.get_ref().as_slice(), &"soy milk is superb".as_bytes());
+        assert_eq!(
+            from_utf8(file.0.get_ref()).unwrap(),
+            "soy milk is superb"
+        );
+    }
+
+    #[test]
+    fn overwrites_the_entire_file_for_smaller_diffs() {
+        let mut file = MockFileData::new("oat milk is the fucking bomb");
+        file.overwrite("soy milk is the bomb".as_bytes()).expect("WTF");
+        assert_eq!(
+            from_utf8(file.0.get_ref()).unwrap(),
+            "soy milk is the bomb"
+        );
     }
 }
