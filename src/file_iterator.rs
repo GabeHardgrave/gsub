@@ -4,7 +4,7 @@ use std::fs::Metadata;
 use regex::{self, RegexSet};
 use walkdir::{self, WalkDir, DirEntry};
 use crate::DEFAULT_FILE_SIZE_INT;
-use crate::tools::is_hidden;
+use crate::tools::{is_hidden, has_gsub_ext};
 use crate::file_data::FileData;
 
 pub struct FileIterConfig {
@@ -65,6 +65,8 @@ impl IntoIterator for FileIterConfig {
 
         let not_blacklisted = move |entry: &DirEntry| {
             if skip_hidden_files && is_hidden(entry.file_name()) {
+                return false;
+            } else if has_gsub_ext(entry.file_name()) {
                 return false;
             }
             !blacklist.is_match(&entry.path().to_string_lossy())

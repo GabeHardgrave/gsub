@@ -17,6 +17,13 @@ pub fn is_hidden<R>(path: R) -> bool where R: AsRef<OsStr> {
         .unwrap_or(false)
 }
 
+pub fn has_gsub_ext<R>(path: R) -> bool where R: AsRef<OsStr> {
+    path.as_ref()
+        .to_str()
+        .map(|s| s.ends_with(GSUB_EXT))
+        .unwrap_or(false)
+}
+
 pub fn add_gsub_ext(path: impl AsRef<Path>) -> PathBuf {
     let mut file_name = path.as_ref().to_path_buf();
     let new_ext = file_name
