@@ -34,7 +34,8 @@ fn main() -> std::io::Result<()> {
             presenter.wax(format!("Would have updated {}", fd.path().to_string_lossy()));
         } else if options.copy_on_write {
             let new_file_name = add_gsub_ext(fd.path());
-            fs::write(new_file_name, new_contents)?;
+            fs::write(&new_file_name, new_contents)?;
+            presenter.wax(format!("Created {}", new_file_name.to_string_lossy()));
         } else {
             fd.overwrite(&new_contents.as_bytes())?;
             presenter.wax(format!("Updated {}", fd.path().to_string_lossy()));
