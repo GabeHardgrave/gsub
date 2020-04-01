@@ -6,8 +6,8 @@ use walkdir::{self, DirEntry};
 use crate::tools::io_err;
 
 pub struct FileData {
-    pub file: File,
-    pub meta_data: Metadata,
+    file: File,
+    meta_data: Metadata,
     dir_entry: DirEntry,
 }
 
