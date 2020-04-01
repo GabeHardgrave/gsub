@@ -1,4 +1,5 @@
 use std::path::Path;
+use std::borrow::Cow;
 use std::fs::{File, OpenOptions, Metadata};
 use std::io::{Result, Read, Write, Seek, SeekFrom};
 use walkdir::{self, DirEntry};
@@ -12,6 +13,8 @@ pub struct FileData {
 
 impl FileData {
     pub fn path(&self) -> &Path { self.dir_entry.path() }
+
+    pub fn path_str(&self) -> Cow<'_, str> { self.path().to_string_lossy() }
 
     pub fn open(dir_entry: DirEntry, meta_data: Metadata, read_only: bool) -> Result<FileData> {
         let file = OpenOptions::new()

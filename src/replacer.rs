@@ -1,20 +1,13 @@
 use std::io;
-use std::borrow::Cow::{Borrowed, Owned};
 use regex::Regex;
-use crate::tools::to_io_err;
 use crate::file_data::SizedReader;
+use crate::tools::{to_io_err, ToStringOption};
 
 #[derive(Debug)]
 pub struct Replacer<'a> {
     pattern: Regex,
     replacement: &'a str,
     buffer: String,
-}
-
-pub enum GsubResult {
-    NoChange,
-    Replaced(String),
-    Error(io::Error),
 }
 
 impl<'a> Replacer<'a> {
@@ -32,12 +25,10 @@ impl<'a> Replacer<'a> {
 
     pub fn old_contents(&self) -> &str { &self.buffer }
 
-    pub fn gsub(&mut self, fd: &mut impl SizedReader) -> GsubResult {
+    pub fn replace(&mut self, fd: &mut impl SizedReader) -> io::Result<Option<String>> {
         self.prep_buffer_for_new_file(fd);
-        if let Err(e) = fd.read_to_string(&mut self.buffer) {
-            return GsubResult::Error(e);
-        }
-        self.replace(&self.buffer)
+        fd.read_to_string(&mut self.buffer)?;
+        Ok(self.pattern.replace_all(&self.buffer, self.replacement).to_option())
     }
 
     fn prep_buffer_for_new_file(&mut self, fd: & impl SizedReader) {
@@ -46,35 +37,12 @@ impl<'a> Replacer<'a> {
             self.buffer.reserve(fd.byte_size() as usize - self.buffer.capacity());
         }
     }
-
-    fn replace(&self, s: &'a str) -> GsubResult {
-        match self.pattern.replace_all(&s, self.replacement) {
-            Borrowed(_) => GsubResult::NoChange,
-            Owned(new_s) => GsubResult::Replaced(new_s),
-        }
-    }
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
     use crate::file_data::tests::MockFileData;
-
-    impl GsubResult {
-        fn expect(self, msg: &'static str) -> String {
-            match self {
-                Self::Replaced(s) => s,
-                _ => panic!(msg)
-            }
-        }
-
-        fn no_change(&self) -> bool {
-            match self {
-                Self::NoChange => true,
-                _ => false,
-            }
-        }
-    }
 
     #[test]
     fn initializer_rejects_bad_patterns() {
@@ -98,8 +66,9 @@ error: repetition operator missing expression";
         let mut file = MockFileData::new(
             "Who lives in an Easter-Island Head under the sea?\nSpongebob Tentacles!"
         );
-        let replaced = r.gsub(&mut file)
-            .expect("'Spongebob' should've been replaced with 'Squidward'");
+        let replaced = r.replace(&mut file)
+            .expect("'Spongebob' should've been replaced with 'Squidward'")
+            .unwrap();
         assert_eq!(
             replaced,
             "Who lives in an Easter-Island Head under the sea?\nSquidward Tentacles!".to_string()
@@ -113,7 +82,7 @@ error: repetition operator missing expression";
         let mut file = MockFileData::new(
             "The best part of The Sopranos is the gabagool!"
         );
-        assert!(r.gsub(&mut file).no_change());
+        assert!(r.replace(&mut file).unwrap().is_none());
     }
 
     #[test]
@@ -142,8 +111,8 @@ baz()
 foo_and_bar()
 gabagool()\
         ".to_string();
-        let dryed_code = r.gsub(&mut wet_code).expect("Unable to dedup");
-        assert_eq!(dryed_code, expected_dry_code);
+        let dryed_code = r.replace(&mut wet_code).expect("Unable to dedup");
+        assert_eq!(dryed_code.unwrap(), expected_dry_code);
     }
 
     #[test]
@@ -154,9 +123,9 @@ gabagool()\
             "capicola",
             "gabagool"
         ).expect("What's wrong with gabagool");
-        let f1_new = r.gsub(&mut f1).expect("shoulda replaced capicola");
-        let f2_new = r.gsub(&mut f2).expect("shoulda replaced capicola");
-        assert_eq!(f1_new, "gabagool isn't vegan");
-        assert_eq!(f2_new, "gabagool is gluten free");
+        let f1_new = r.replace(&mut f1).expect("shoulda replaced capicola");
+        let f2_new = r.replace(&mut f2).expect("shoulda replaced capicola");
+        assert_eq!(f1_new.unwrap(), "gabagool isn't vegan");
+        assert_eq!(f2_new.unwrap(), "gabagool is gluten free");
     }
 }

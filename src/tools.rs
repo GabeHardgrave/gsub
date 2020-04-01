@@ -1,6 +1,7 @@
 use std::io;
-use std::ffi::{OsStr, OsString};
+use std::borrow::Cow;
 use std::path::{Path, PathBuf};
+use std::ffi::{OsStr, OsString};
 use crate::{GSUB_EXT, GSUB_EXT_NAME, CURRENT_DIR};
 
 pub fn to_io_err(msg: String) -> io::Error {
@@ -35,6 +36,19 @@ pub fn add_gsub_ext(path: impl AsRef<Path>) -> PathBuf {
         }).unwrap_or_else(|| OsString::from(GSUB_EXT_NAME));
     file_name.set_extension(new_ext);
     file_name
+}
+
+pub trait ToStringOption {
+    fn to_option(self) -> Option<String>;
+}
+
+impl ToStringOption for Cow<'_, str> {
+    fn to_option(self) -> Option<String> {
+        match self {
+            Self::Borrowed(_) => None,
+            Self::Owned(s) => Some(s),
+        }
+    }
 }
 
 #[cfg(test)]
