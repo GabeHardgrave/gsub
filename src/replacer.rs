@@ -1,7 +1,7 @@
 use std::io;
 use regex::Regex;
 use crate::file_data::SizedReader;
-use crate::tools::{to_io_err, ToStringOption};
+use crate::tools::{io_err, ToStringOption};
 
 #[derive(Debug)]
 pub struct Replacer<'a> {
@@ -14,7 +14,7 @@ impl<'a> Replacer<'a> {
     pub fn new(pattern: &'_ str, replacement: &'a str) -> io::Result<Replacer<'a>> {
         let re = Regex::new(pattern)
             .map_err(|regex_err| { regex_err.to_string() })
-            .map_err(to_io_err)?;
+            .map_err(io_err)?;
 
         Ok(Replacer {
             pattern: re,

@@ -3,7 +3,7 @@ use std::borrow::Cow;
 use std::fs::{File, OpenOptions, Metadata};
 use std::io::{Result, Read, Write, Seek, SeekFrom};
 use walkdir::{self, DirEntry};
-use crate::tools::to_io_err;
+use crate::tools::io_err;
 
 pub struct FileData {
     pub file: File,
@@ -26,7 +26,7 @@ impl FileData {
             .map_err(|io_err| {
                 format!("Failed to open {}: {}", dir_entry.path().to_string_lossy(), io_err)
             })
-            .map_err(to_io_err)?;
+            .map_err(io_err)?;
 
         Ok(Self {
             file: file,

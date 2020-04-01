@@ -1,14 +1,14 @@
 use std::io;
 use std::borrow::Cow;
+use std::error::Error;
 use std::path::{Path, PathBuf};
 use std::ffi::{OsStr, OsString};
 use crate::{GSUB_EXT, GSUB_EXT_NAME, CURRENT_DIR};
 
-pub fn to_io_err(msg: String) -> io::Error {
-    io::Error::new(
-        io::ErrorKind::Other,
-        msg
-    )
+pub fn io_err<E>(e: E) -> io::Error
+    where E: Into<Box<dyn Error + Send + Sync>>,
+{
+    io::Error::new(io::ErrorKind::Other, e)
 }
 
 pub fn is_hidden<R>(path: R) -> bool where R: AsRef<OsStr> {

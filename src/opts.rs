@@ -4,7 +4,7 @@ use structopt::StructOpt;
 use crate::file_iterator::FileIterConfig;
 use crate::replacer::Replacer;
 use crate::presenter::Presenter;
-use crate::tools::to_io_err;
+use crate::tools::io_err;
 use crate::{DEFAULT_FILE_SIZE_STR, CURRENT_DIR};
 
 #[derive(Debug, StructOpt)]
@@ -50,9 +50,7 @@ impl Opts {
             opts.files.push(CURRENT_DIR.into())
         }
         if opts.copy_on_write && opts.dry_run {
-            return Err(to_io_err(
-                "--dry-run and --copy-on-write are incompatible flags".to_string()
-            ));
+            return Err(io_err("--dry-run and --copy-on-write are incompatible flags".to_string()));
         }
         Ok(opts)
     }
@@ -71,8 +69,6 @@ impl Opts {
             .skip_files_larger_than(self.max_file_size)
             .skip_hidden_files(!self.show_hidden_files)
             .skip_files_that_match(&self.files_to_skip)
-            .map_err(|regex_err| {
-                io::Error::new(io::ErrorKind::Other, regex_err.to_string())
-            })
+            .map_err(io_err)
     }
 }
