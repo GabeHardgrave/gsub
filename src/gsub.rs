@@ -7,7 +7,7 @@ use crate::file_data::{FileData, OverWrite};
 
 pub fn gsub(
     fd_result: io::Result<FileData>,
-    replacer: &mut Replacer,
+    replacer: &Replacer,
     opts: &Opts,
 ) -> Result<Option<Msg<String>>, Msg<String>>
 {

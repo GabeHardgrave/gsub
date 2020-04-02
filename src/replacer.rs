@@ -1,41 +1,24 @@
 use std::io;
-use regex::Regex;
+use regex::{self, Regex};
+use crate::tools::ToStringOption;
 use crate::file_data::SizedReader;
-use crate::tools::{io_err, ToStringOption};
 
 #[derive(Debug)]
 pub struct Replacer<'a> {
     pattern: Regex,
     replacement: &'a str,
-    buffer: String,
 }
 
 impl<'a> Replacer<'a> {
-    pub fn new(pattern: &'_ str, replacement: &'a str) -> io::Result<Replacer<'a>> {
-        let re = Regex::new(pattern)
-            .map_err(|regex_err| { regex_err.to_string() })
-            .map_err(io_err)?;
-
-        Ok(Replacer {
-            pattern: re,
-            replacement: replacement,
-            buffer: String::new(),
-        })
+    pub fn new(pattern: &'_ str, replacement: &'a str) -> Result<Replacer<'a>, regex::Error> {
+        let pattern = Regex::new(pattern)?;
+        Ok(Replacer { pattern, replacement, })
     }
 
-    pub fn old_contents(&self) -> &str { &self.buffer }
-
-    pub fn replace(&mut self, fd: &mut impl SizedReader) -> io::Result<Option<String>> {
-        self.prep_buffer_for_new_file(fd);
-        fd.read_to_string(&mut self.buffer)?;
-        Ok(self.pattern.replace_all(&self.buffer, self.replacement).to_option())
-    }
-
-    fn prep_buffer_for_new_file(&mut self, fd: & impl SizedReader) {
-        self.buffer.clear();
-        if fd.byte_size() > self.buffer.capacity() {
-            self.buffer.reserve(fd.byte_size() as usize - self.buffer.capacity());
-        }
+    pub fn replace(&self, fd: &mut impl SizedReader) -> io::Result<Option<String>> {
+        let mut buffer = String::with_capacity(fd.byte_size());
+        fd.read_to_string(&mut buffer)?;
+        Ok(self.pattern.replace_all(&buffer, self.replacement).to_option())
     }
 }
 
@@ -61,7 +44,7 @@ error: repetition operator missing expression";
 
     #[test]
     fn replaces_simple_words() {
-        let mut r = Replacer::new("Spongebob", "Squidward")
+        let r = Replacer::new("Spongebob", "Squidward")
             .expect("a simple word like 'Spongebob' is getting rejected by Regex");
         let mut file = MockFileData::new(
             "Who lives in an Easter-Island Head under the sea?\nSpongebob Tentacles!"
@@ -77,7 +60,7 @@ error: repetition operator missing expression";
 
     #[test]
     fn returns_no_change_when_no_replacement_can_be_made() {
-        let mut r = Replacer::new("capicola", "gabagool")
+        let r = Replacer::new("capicola", "gabagool")
             .expect("What's wrong with 'capicola'?");
         let mut file = MockFileData::new(
             "The best part of The Sopranos is the gabagool!"
@@ -98,7 +81,7 @@ foo()
 bar()
 gabagool()\
         ");
-        let mut r = Replacer::new(
+        let r = Replacer::new(
             r"foo\(\)\nbar\(\)",
             "foo_and_bar()"
         ).expect("What's wrong with a multiline replacement?");
@@ -119,7 +102,7 @@ gabagool()\
     fn replaces_multiple_files_in_a_row_correctly() {
         let mut f1 = MockFileData::new("capicola isn't vegan");
         let mut f2 = MockFileData::new("capicola is gluten free");
-        let mut r = Replacer::new(
+        let r = Replacer::new(
             "capicola",
             "gabagool"
         ).expect("What's wrong with gabagool");

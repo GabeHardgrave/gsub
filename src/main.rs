@@ -1,18 +1,46 @@
 use gsub::gsub::gsub;
 use gsub::opts::Opts;
+use gsub::tools::io_err;
+use gsub::file_data::OpenFileData;
 
 fn main() -> std::io::Result<()> {
     let options = Opts::parse()?;
-    let file_iter = options.file_iter_config()?;
-    let mut replacer = options.replacer()?;
+    let replacer = options.replacer().map_err(io_err)?;
+    let blacklist = options.dir_entry_blacklist().map_err(io_err)?;
+    let opener = options.open_opts();
     let presenter = options.presenter();
+    let walker = options.walk_builder().build_parallel();
 
-    file_iter.into_iter().for_each(|fd_result| {
-        match gsub(fd_result, &mut replacer, &options) {
-            Ok(Some(msg)) => presenter.wax(msg),
-            Err(msg) => presenter.wax(msg),
-            _ => {},
-        }
+    walker.run(|| {
+        Box::new(|result| {
+            let entry = match result {
+                Ok(e) => e,
+                Err(_) => { return ignore::WalkState::Continue }
+            };
+
+            if let Some(file_type) = entry.file_type() {
+                if file_type.is_dir() {
+                    if blacklist.is_match(&entry.file_name().to_string_lossy()) {
+                        return ignore::WalkState::Skip;
+                    } else {
+                        return ignore::WalkState::Continue;
+                    }
+                }
+            } else {
+                return ignore::WalkState::Continue; // stdio, maybe we'll support it in the future
+            };
+
+            match gsub(
+                opener.open_fd(entry),
+                &replacer,
+                &options,
+            ) {
+                Ok(Some(msg)) | Err(msg) => presenter.wax(msg),
+                Ok(None) => {},
+            }
+            ignore::WalkState::Continue
+        })
     });
+
     Ok(())
 }

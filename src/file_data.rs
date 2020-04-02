@@ -1,47 +1,44 @@
 use std::path::Path;
 use std::borrow::Cow;
-use std::fs::{File, OpenOptions, Metadata};
+use std::fs::{File, OpenOptions};
 use std::io::{Result, Read, Write, Seek, SeekFrom};
-use walkdir::{self, DirEntry};
-use crate::tools::io_err;
+use ignore::{self, DirEntry};
 
 pub struct FileData {
     file: File,
-    meta_data: Metadata,
+    estimated_size: u64,
     dir_entry: DirEntry,
+}
+
+pub trait OpenFileData {
+    fn open_fd(&self, entry: DirEntry) -> Result<FileData>;
+}
+
+impl OpenFileData for OpenOptions {
+    fn open_fd(&self, dir_entry: DirEntry) -> Result<FileData> {
+        debug_assert!(dir_entry.file_type().unwrap().is_file());
+        let estimated_size = dir_entry.metadata()
+            .map(|md| md.len())
+            .unwrap_or(0);
+        let file = self.open(dir_entry.path())?;
+        Ok(FileData { file, estimated_size, dir_entry})
+    }
 }
 
 impl FileData {
     pub fn path(&self) -> &Path { self.dir_entry.path() }
-
     pub fn path_str(&self) -> Cow<'_, str> { self.path().to_string_lossy() }
-
-    pub fn open(dir_entry: DirEntry, meta_data: Metadata, read_only: bool) -> Result<FileData> {
-        let file = OpenOptions::new()
-            .read(true)
-            .write(!read_only)
-            .append(false)
-            .create(false)
-            .open(dir_entry.path())
-            .map_err(|io_err| {
-                format!("Failed to open {}: {}", dir_entry.path().to_string_lossy(), io_err)
-            })
-            .map_err(io_err)?;
-
-        Ok(Self {
-            file: file,
-            dir_entry: dir_entry,
-            meta_data: meta_data,
-        })
-    }
 }
+
+// It's kind of tedious to define all of these traits, but it does let us unit test really well
+// so \_(*_*)_/
 
 pub trait ByteSized {
     fn byte_size(&self) -> usize;
 }
 
 impl ByteSized for FileData {
-    fn byte_size(&self) -> usize { self.meta_data.len() as usize }
+    fn byte_size(&self) -> usize { self.estimated_size as usize }
 }
 
 impl Read for FileData {

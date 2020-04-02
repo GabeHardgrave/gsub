@@ -1,11 +1,15 @@
 use std::io;
 use std::path::PathBuf;
+use std::fs::OpenOptions;
 use structopt::StructOpt;
-use crate::file_iterator::FileIterConfig;
+use ignore::WalkBuilder;
+use regex::{self, RegexSet};
 use crate::replacer::Replacer;
 use crate::presenter::Presenter;
 use crate::tools::io_err;
 use crate::{DEFAULT_FILE_SIZE_STR, CURRENT_DIR};
+
+static GSUB_EXT_PATTERN: &str = r"((.*)(\.)gsub)$";
 
 #[derive(Debug, StructOpt)]
 #[structopt(name = "gsub", about = "Regex substitution for files and directories")]
@@ -28,7 +32,7 @@ pub struct Opts {
 
     /// Skip files larger than the given number of bytes.
     #[structopt(short = "m", long = "skip-files-larger-than", default_value = DEFAULT_FILE_SIZE_STR)]
-    pub max_file_size: usize,
+    pub max_file_size: u64,
 
     /// Files/Directories to skip
     #[structopt(short = "e", long = "except")]
@@ -45,17 +49,14 @@ pub struct Opts {
 
 impl Opts {
     pub fn parse() -> io::Result<Self> {
-        let mut opts = Self::from_args();
-        if opts.files.is_empty() {
-            opts.files.push(CURRENT_DIR.into())
-        }
+        let opts = Self::from_args();
         if opts.copy_on_write && opts.dry_run {
             return Err(io_err("--dry-run and --copy-on-write are incompatible flags".to_string()));
         }
         Ok(opts)
     }
 
-    pub fn replacer(&self) -> io::Result<Replacer> {
+    pub fn replacer(&self) -> Result<Replacer, regex::Error> {
         Replacer::new(&self.pattern, &self.replacement)
     }
 
@@ -63,12 +64,55 @@ impl Opts {
         Presenter::new(self.verbose)
     }
 
-    pub fn file_iter_config(&self) -> io::Result<FileIterConfig> {
-        FileIterConfig::new(&self.files)
-            .read_only(self.dry_run || self.copy_on_write)
-            .skip_files_larger_than(self.max_file_size)
-            .skip_hidden_files(!self.show_hidden_files)
-            .skip_files_that_match(&self.files_to_skip)
-            .map_err(io_err)
+    pub fn open_opts(&self) -> OpenOptions {
+        let read_only = self.copy_on_write || self.dry_run;
+        let mut open_opts = OpenOptions::new();
+        open_opts.read(true)
+            .write(!read_only)
+            .append(false)
+            .create(false);
+        open_opts
+    }
+
+    pub fn dir_entry_blacklist(&self) -> Result<RegexSet, regex::Error> {
+        RegexSet::new([GSUB_EXT_PATTERN.to_string()]
+            .iter()
+            .chain(self.files_to_skip.iter())
+        )
+    }
+
+    pub fn walk_builder(&self) -> WalkBuilder {
+        let mut wb = self.base_walk_builder();
+        wb.follow_links(false)
+            .max_filesize(Some(self.max_file_size))
+            .hidden(!self.show_hidden_files);
+        wb
+    }
+
+    fn base_walk_builder(&self) -> WalkBuilder {
+        let mut paths = self.files.iter();
+        let mut wb = WalkBuilder::new(paths
+            .next()
+            .unwrap_or(&PathBuf::from(CURRENT_DIR)));
+        paths.for_each(|p| { wb.add(p); });
+        wb
+    }
+}
+
+#[cfg(test)]
+mod test {
+    use super::*;
+
+    #[test]
+    fn gsub_ext_pattern_works() {
+        let rs = RegexSet::new(&[GSUB_EXT_PATTERN]).expect("didn't compile");
+
+        assert!(rs.is_match("somefile.gsub"));
+        assert!(rs.is_match(".some-other-file.txt.gsub"));
+        assert!(rs.is_match("./some_dir/some_file.gsub"));
+
+        assert!(!rs.is_match("main.rs"));
+        assert!(!rs.is_match("gsub.txt"));
+        assert!(!rs.is_match("main.gsub.rs"));
     }
 }
