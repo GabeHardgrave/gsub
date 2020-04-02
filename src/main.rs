@@ -35,12 +35,12 @@ fn get_allowed_file_entry(
 }
 
 fn main() -> std::io::Result<()> {
-    let options = Opts::parse().map_err(io_err)?;
-    let replacer = options.replacer().map_err(io_err)?;
-    let blacklist = options.dir_entry_blacklist().map_err(io_err)?;
-    let opener = options.open_opts();
-    let presenter = options.presenter();
-    let walker = options.walk_builder().build_parallel();
+    let opts = Opts::parse().map_err(io_err)?;
+    let replacer = opts.replacer().map_err(io_err)?;
+    let blacklist = opts.dir_entry_blacklist().map_err(io_err)?;
+    let opener = opts.open_opts();
+    let presenter = opts.presenter();
+    let walker = opts.walk_builder().build_parallel();
 
     walker.run(|| {
         Box::new(|result| {
@@ -48,11 +48,7 @@ fn main() -> std::io::Result<()> {
                 Ok(e) => e,
                 Err(walk_state) => return walk_state,
             };
-            match gsub(
-                opener.open_fd(entry),
-                &replacer,
-                &options,
-            ) {
+            match gsub(opener.open_fd(entry), &replacer, &opts) {
                 Ok(Some(msg)) | Err(msg) => presenter.wax(msg),
                 Ok(None) => {},
             }
