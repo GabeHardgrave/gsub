@@ -1,5 +1,7 @@
 use std::io;
 use std::error::Error;
+use regex::RegexSet;
+use ignore::{self, DirEntry, WalkState};
 use gsub::gsub::gsub;
 use gsub::opts::Opts;
 use gsub::file_data::OpenFileData;
@@ -8,6 +10,28 @@ fn io_err<E>(e: E) -> io::Error
     where E: Into<Box<dyn Error + Send + Sync>>,
 {
     io::Error::new(io::ErrorKind::Other, e)
+}
+
+fn get_allowed_file_entry(
+    entry_result: Result<DirEntry, ignore::Error>,
+    blacklist: &RegexSet,
+) -> Result<DirEntry, WalkState>
+{
+    let entry = entry_result.map_err(|_| WalkState::Continue)?;
+    let file_type = entry.file_type().ok_or(WalkState::Continue)?;
+    debug_assert!(
+        !file_type.is_symlink(),
+        "walk_builder() should've been configured to protect against symlinks"
+    );
+
+    let blacklisted = blacklist.is_match(&entry.file_name().to_string_lossy());
+    let is_file = file_type.is_file();
+    match (is_file, blacklisted) {
+          (true,    false) => Ok(entry),
+          (true,    true) => Err(WalkState::Continue),
+          (false,   false) => Err(WalkState::Continue),
+          (false,   true) => Err(WalkState::Skip),
+    }
 }
 
 fn main() -> std::io::Result<()> {
@@ -20,23 +44,10 @@ fn main() -> std::io::Result<()> {
 
     walker.run(|| {
         Box::new(|result| {
-            let entry = match result {
+            let entry = match get_allowed_file_entry(result, &blacklist) {
                 Ok(e) => e,
-                Err(_) => { return ignore::WalkState::Continue }
+                Err(walk_state) => return walk_state,
             };
-
-            if let Some(file_type) = entry.file_type() {
-                if file_type.is_dir() {
-                    if blacklist.is_match(&entry.file_name().to_string_lossy()) {
-                        return ignore::WalkState::Skip;
-                    } else {
-                        return ignore::WalkState::Continue;
-                    }
-                }
-            } else {
-                return ignore::WalkState::Continue; // stdio, maybe we'll support it in the future
-            };
-
             match gsub(
                 opener.open_fd(entry),
                 &replacer,
@@ -45,7 +56,7 @@ fn main() -> std::io::Result<()> {
                 Ok(Some(msg)) | Err(msg) => presenter.wax(msg),
                 Ok(None) => {},
             }
-            ignore::WalkState::Continue
+            WalkState::Continue
         })
     });
 

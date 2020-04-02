@@ -3,10 +3,10 @@ use std::fs::OpenOptions;
 use structopt::StructOpt;
 use ignore::WalkBuilder;
 use regex::{self, RegexSet};
+use crate::CURRENT_DIR;
 use crate::replacer::Replacer;
 use crate::presenter::Presenter;
 use crate::gsub::GSUB_EXT_PATTERN;
-use crate::{DEFAULT_FILE_SIZE_STR, CURRENT_DIR};
 
 #[derive(Debug, StructOpt)]
 #[structopt(name = "gsub", about = "Regex substitution for files and directories")]
@@ -28,7 +28,7 @@ pub struct Opts {
     pub replacement: String,
 
     /// Skip files larger than the given number of bytes.
-    #[structopt(short = "m", long = "skip-files-larger-than", default_value = DEFAULT_FILE_SIZE_STR)]
+    #[structopt(short = "m", long = "skip-files-larger-than", default_value = "4194304")]
     pub max_file_size: u64,
 
     /// Files/Directories to skip
