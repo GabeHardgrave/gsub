@@ -1,9 +1,14 @@
 use std::{io, fs};
+use std::path::{Path, PathBuf};
+use std::ffi::{OsStr, OsString};
 use crate::opts::Opts;
 use crate::replacer::Replacer;
-use crate::tools::add_gsub_ext;
 use crate::presenter::{Msg, ToMsg};
 use crate::file_data::{FileData, OverWrite};
+
+pub static GSUB_EXT_PATTERN: &str = r"((.*)(\.)gsub)$";
+static GSUB_EXT_NAME: &str = "gsub";
+static GSUB_EXT: &str = ".gsub";
 
 pub fn gsub(
     fd_result: io::Result<FileData>,
@@ -30,4 +35,50 @@ pub fn gsub(
         format!("Updated {}", fd.path_str()).important()
     };
     Ok(Some(success_msg))
+}
+
+fn add_gsub_ext(path: impl AsRef<Path>) -> PathBuf {
+    let mut file_name = path.as_ref().to_path_buf();
+    let new_ext = file_name
+        .extension()
+        .map(OsString::from)
+        .map(|mut ext| {
+            ext.push(OsStr::new(GSUB_EXT));
+            ext
+        }).unwrap_or_else(|| OsString::from(GSUB_EXT_NAME));
+    file_name.set_extension(new_ext);
+    file_name
+}
+
+#[cfg(test)]
+pub mod tests {
+    use super::*;
+    use regex::RegexSet;
+
+    #[test]
+    fn adds_expected_gsub_ext_to_a_file_with_no_ext() {
+        let p = PathBuf::from("gabagool");
+        let p_gsubd = add_gsub_ext(p);
+        assert_eq!(p_gsubd.to_string_lossy(), "gabagool.gsub")
+    }
+
+    #[test]
+    fn adds_expected_gsub_ext_to_a_file_with_an_ext() {
+        let p = PathBuf::from("gabagool.txt");
+        let p_gsubd = add_gsub_ext(p);
+        assert_eq!(p_gsubd.to_string_lossy(), "gabagool.txt.gsub")
+    }
+
+    #[test]
+    fn gsub_ext_pattern_matches_against_expected_file_paths() {
+        let rs = RegexSet::new(&[GSUB_EXT_PATTERN]).expect("didn't compile");
+
+        assert!(rs.is_match("somefile.gsub"));
+        assert!(rs.is_match(".some-other-file.txt.gsub"));
+        assert!(rs.is_match("./some_dir/some_file.gsub"));
+
+        assert!(!rs.is_match("main.rs"));
+        assert!(!rs.is_match("gsub.txt"));
+        assert!(!rs.is_match("main.gsub.rs"));
+    }
 }

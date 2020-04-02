@@ -1,6 +1,6 @@
 use std::io;
+use std::borrow::Cow::{Borrowed, Owned};
 use regex::{self, Regex};
-use crate::tools::ToStringOption;
 use crate::file_data::SizedReader;
 
 #[derive(Debug)]
@@ -18,7 +18,10 @@ impl<'a> Replacer<'a> {
     pub fn replace(&self, fd: &mut impl SizedReader) -> io::Result<Option<String>> {
         let mut buffer = String::with_capacity(fd.byte_size());
         fd.read_to_string(&mut buffer)?;
-        Ok(self.pattern.replace_all(&buffer, self.replacement).to_option())
+        Ok(match self.pattern.replace_all(&buffer, self.replacement) {
+            Borrowed(_) => None,
+            Owned(s) => Some(s),
+        })
     }
 }
 
@@ -36,16 +39,12 @@ regex parse error:
     *
     ^
 error: repetition operator missing expression";
-        assert_eq!(
-            r.unwrap_err().to_string(),
-            expected_err_msg,
-        );
+        assert_eq!(r.unwrap_err().to_string(), expected_err_msg);
     }
 
     #[test]
     fn replaces_simple_words() {
-        let r = Replacer::new("Spongebob", "Squidward")
-            .expect("a simple word like 'Spongebob' is getting rejected by Regex");
+        let r = Replacer::new("Spongebob", "Squidward").unwrap();
         let mut file = MockFileData::new(
             "Who lives in an Easter-Island Head under the sea?\nSpongebob Tentacles!"
         );
@@ -53,18 +52,15 @@ error: repetition operator missing expression";
             .expect("'Spongebob' should've been replaced with 'Squidward'")
             .unwrap();
         assert_eq!(
-            replaced,
-            "Who lives in an Easter-Island Head under the sea?\nSquidward Tentacles!".to_string()
+            &replaced,
+            "Who lives in an Easter-Island Head under the sea?\nSquidward Tentacles!"
         );
     }
 
     #[test]
     fn returns_no_change_when_no_replacement_can_be_made() {
-        let r = Replacer::new("capicola", "gabagool")
-            .expect("What's wrong with 'capicola'?");
-        let mut file = MockFileData::new(
-            "The best part of The Sopranos is the gabagool!"
-        );
+        let r = Replacer::new("capicola", "gabagool").unwrap();
+        let mut file = MockFileData::new("The best part of The Sopranos is the gabagool!");
         assert!(r.replace(&mut file).unwrap().is_none());
     }
 
@@ -102,12 +98,9 @@ gabagool()\
     fn replaces_multiple_files_in_a_row_correctly() {
         let mut f1 = MockFileData::new("capicola isn't vegan");
         let mut f2 = MockFileData::new("capicola is gluten free");
-        let r = Replacer::new(
-            "capicola",
-            "gabagool"
-        ).expect("What's wrong with gabagool");
-        let f1_new = r.replace(&mut f1).expect("shoulda replaced capicola");
-        let f2_new = r.replace(&mut f2).expect("shoulda replaced capicola");
+        let r = Replacer::new("capicola", "gabagool").unwrap();
+        let f1_new = r.replace(&mut f1).unwrap();
+        let f2_new = r.replace(&mut f2).unwrap();
         assert_eq!(f1_new.unwrap(), "gabagool isn't vegan");
         assert_eq!(f2_new.unwrap(), "gabagool is gluten free");
     }

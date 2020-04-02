@@ -1,10 +1,17 @@
+use std::io;
+use std::error::Error;
 use gsub::gsub::gsub;
 use gsub::opts::Opts;
-use gsub::tools::io_err;
 use gsub::file_data::OpenFileData;
 
+fn io_err<E>(e: E) -> io::Error
+    where E: Into<Box<dyn Error + Send + Sync>>,
+{
+    io::Error::new(io::ErrorKind::Other, e)
+}
+
 fn main() -> std::io::Result<()> {
-    let options = Opts::parse()?;
+    let options = Opts::parse().map_err(io_err)?;
     let replacer = options.replacer().map_err(io_err)?;
     let blacklist = options.dir_entry_blacklist().map_err(io_err)?;
     let opener = options.open_opts();

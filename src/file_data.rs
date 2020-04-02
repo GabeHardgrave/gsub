@@ -21,7 +21,7 @@ impl OpenFileData for OpenOptions {
             .map(|md| md.len())
             .unwrap_or(0);
         let file = self.open(dir_entry.path())?;
-        Ok(FileData { file, estimated_size, dir_entry})
+        Ok(FileData { file, estimated_size, dir_entry })
     }
 }
 
@@ -82,10 +82,15 @@ pub mod tests {
     use super::*;
     use std::io::Cursor;
     use std::str::from_utf8;
+
     pub struct MockFileData(Cursor<Vec<u8>>);
+
     impl MockFileData {
         pub fn new(bytes: impl Into<Vec<u8>>) -> MockFileData {
             MockFileData(Cursor::new(bytes.into()))
+        }
+        pub fn utf8_contents(&self) -> &str {
+            from_utf8(self.0.get_ref()).unwrap()
         }
     }
 
@@ -113,23 +118,17 @@ pub mod tests {
     impl OverWrite for MockFileData {}
 
     #[test]
-    fn overwrites_the_entire_file_for_larger_diffs() {
+    fn overwrites_the_entire_file_with_larger_diffs() {
         let mut file = MockFileData::new("oat milk is tasty");
-        file.write("almond".as_bytes()).expect("WTF?");
-        file.overwrite("soy milk is superb".as_bytes()).expect("WTF?");
-        assert_eq!(
-            from_utf8(file.0.get_ref()).unwrap(),
-            "soy milk is superb"
-        );
+        file.write(b"almond").unwrap();
+        file.overwrite(b"soy milk is superb").unwrap();
+        assert_eq!(file.utf8_contents(), "soy milk is superb");
     }
 
     #[test]
     fn overwrites_the_entire_file_for_smaller_diffs() {
         let mut file = MockFileData::new("oat milk is the fucking bomb");
-        file.overwrite("soy milk is the bomb".as_bytes()).expect("WTF");
-        assert_eq!(
-            from_utf8(file.0.get_ref()).unwrap(),
-            "soy milk is the bomb"
-        );
+        file.overwrite(b"soy milk is the bomb").unwrap();
+        assert_eq!(file.utf8_contents(), "soy milk is the bomb");
     }
 }

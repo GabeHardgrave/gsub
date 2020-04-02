@@ -1,4 +1,5 @@
 use std::{fmt, io};
+
 pub enum Msg<M> {
     Important(M),
     Verbose(M),

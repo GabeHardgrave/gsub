@@ -1,4 +1,3 @@
-use std::io;
 use std::path::PathBuf;
 use std::fs::OpenOptions;
 use structopt::StructOpt;
@@ -6,10 +5,8 @@ use ignore::WalkBuilder;
 use regex::{self, RegexSet};
 use crate::replacer::Replacer;
 use crate::presenter::Presenter;
-use crate::tools::io_err;
+use crate::gsub::GSUB_EXT_PATTERN;
 use crate::{DEFAULT_FILE_SIZE_STR, CURRENT_DIR};
-
-static GSUB_EXT_PATTERN: &str = r"((.*)(\.)gsub)$";
 
 #[derive(Debug, StructOpt)]
 #[structopt(name = "gsub", about = "Regex substitution for files and directories")]
@@ -48,10 +45,10 @@ pub struct Opts {
 }
 
 impl Opts {
-    pub fn parse() -> io::Result<Self> {
+    pub fn parse() -> Result<Self, &'static str> {
         let opts = Self::from_args();
         if opts.copy_on_write && opts.dry_run {
-            return Err(io_err("--dry-run and --copy-on-write are incompatible flags".to_string()));
+            return Err("--dry-run and --copy-on-write are incompatible flags");
         }
         Ok(opts)
     }
@@ -96,23 +93,5 @@ impl Opts {
             .unwrap_or(&PathBuf::from(CURRENT_DIR)));
         paths.for_each(|p| { wb.add(p); });
         wb
-    }
-}
-
-#[cfg(test)]
-mod test {
-    use super::*;
-
-    #[test]
-    fn gsub_ext_pattern_works() {
-        let rs = RegexSet::new(&[GSUB_EXT_PATTERN]).expect("didn't compile");
-
-        assert!(rs.is_match("somefile.gsub"));
-        assert!(rs.is_match(".some-other-file.txt.gsub"));
-        assert!(rs.is_match("./some_dir/some_file.gsub"));
-
-        assert!(!rs.is_match("main.rs"));
-        assert!(!rs.is_match("gsub.txt"));
-        assert!(!rs.is_match("main.gsub.rs"));
     }
 }
