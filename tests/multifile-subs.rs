@@ -25,12 +25,11 @@ fn cleanup_file(name: &str) {
 
 #[test]
 fn test_sub_multiple_files() {
-    fs::create_dir_all("test-files/test_sub_multiple_files")
-            .expect("unable to create directory");
+    fs::create_dir_all("test-files/test_sub_multiple_files").expect("unable to create directory");
     setup_file("test-files/test_sub_multiple_files/a");
     setup_file("test-files/test_sub_multiple_files/b");
     setup_file("test-files/test_sub_multiple_files_c");
-    
+
     Command::new("./target/debug/gsub")
         .arg("moooornin train")
         .arg("afternoon plane")
@@ -38,7 +37,7 @@ fn test_sub_multiple_files() {
         .arg("test-files/test_sub_multiple_files_c")
         .output()
         .expect("unable to execute gsub");
-   
+
     let expected = "
 My baby takes the afternoon plane
 He works from nine til five aaaand then
@@ -48,8 +47,8 @@ To find me waitin' for him
     let files = vec![
         "test-files/test_sub_multiple_files/a",
         "test-files/test_sub_multiple_files/b",
-        "test-files/test_sub_multiple_files_c", 
-        ];
+        "test-files/test_sub_multiple_files_c",
+    ];
     for f in files {
         let contents = fs::read_to_string(f).expect("unable to read file");
         assert_eq!(contents, expected)

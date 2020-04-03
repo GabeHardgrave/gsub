@@ -33,7 +33,6 @@ ARGS:
         .output()
         .expect("can't execute `gsub --help`")
         .stdout;
-    let help_docs = String::from_utf8(help_docs_raw)
-        .expect("Help docs aren't valid UTF8");
+    let help_docs = String::from_utf8(help_docs_raw).expect("Help docs aren't valid UTF8");
     assert_eq!(expected_docs, help_docs)
 }

@@ -27,10 +27,10 @@ fn get_allowed_file_entry(
     let blacklisted = blacklist.is_match(&entry.file_name().to_string_lossy());
     let is_file = file_type.is_file();
     match (is_file, blacklisted) {
-          (true,    false) => Ok(entry),
-          (true,    true) => Err(WalkState::Continue),
-          (false,   false) => Err(WalkState::Continue),
-          (false,   true) => Err(WalkState::Skip),
+        (true, false) => Ok(entry),
+        (true, true) => Err(WalkState::Continue),
+        (false, false) => Err(WalkState::Continue),
+        (false, true) => Err(WalkState::Skip),
     }
 }
 
